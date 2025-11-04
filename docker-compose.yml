@@ -1,0 +1,106 @@
+# docker-compose.yml
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+      - ALLOW_RESET=True
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp-servers:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "9001:9001"  # Resume PDF server
+      - "9002:9002"  # Vector DB server
+      - "9003:9003"  # Code Explorer server
+    environment:
+      - CHROMA_HOST=http://chromadb:8000
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./data:/app/data
+      - ./mcp_servers:/app/mcp_servers
+      - .:/app/codebase:ro  # Read-only access to codebase
+    depends_on:
+      - chromadb
+      - ollama
+    healthcheck:
+      test: ["CMD", "python", "-c", "import fastmcp; print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    ports:
+      - "8080:8080"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - CHROMA_HOST=http://chromadb:8000
+      - MCP_RESUME_URL=http://mcp-servers:9001
+      - MCP_VECTOR_URL=http://mcp-servers:9002
+      - MCP_CODE_URL=http://mcp-servers:9003
+    volumes:
+      - ./data:/app/data
+      - ./agent:/app/agent
+    depends_on:
+      - mcp-servers
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+
+volumes:
+  ollama_data:
+  chroma_data:
+  prometheus_data:
+  grafana_data:

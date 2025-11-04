@@ -1,0 +1,23 @@
+# Dockerfile.agent
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY agent/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY agent/ ./agent/
+
+# Set PYTHONPATH so agent module can be imported
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Run Chainlit app
+CMD ["chainlit", "run", "agent/ui/chainlit_app.py", "--host", "0.0.0.0", "--port", "8080"]
