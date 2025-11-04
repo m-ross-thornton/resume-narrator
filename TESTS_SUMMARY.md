@@ -144,13 +144,13 @@ pytest tests/ -v
 ### With Services Running
 ```bash
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # Run integration tests
 pytest tests/ -m integration -v
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ## Test Fixtures
@@ -169,7 +169,7 @@ Available fixtures in conftest.py:
 - [ ] Pre-commit hooks pass: `pre-commit run --all-files`
 
 **Optional but Recommended**:
-- [ ] Integration tests pass (requires docker-compose up -d)
+- [ ] Integration tests pass (requires `docker compose up -d`)
 - [ ] Code coverage acceptable (aim for >80%)
 - [ ] No linting errors
 

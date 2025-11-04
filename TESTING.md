@@ -110,14 +110,14 @@ pytest tests/ -s
 
 ### Integration Tests (Requires Running Services)
 - All unit test requirements
-- Docker and Docker Compose
-- Running services: `docker-compose up -d`
+- Docker (with Compose plugin)
+- Running services: `docker compose up -d`
 - Services must be healthy
 
 ### Docker Tests (No Services Required)
 - Pytest
 - PyYAML (for docker-compose.yml validation)
-- Docker CLI (optional, for docker build tests)
+- Docker CLI (for build tests)
 
 ## Before Committing to GitHub
 
@@ -137,9 +137,9 @@ pre-commit run --all-files
 # (pytest tests/test_docker_deployment.py runs automatically)
 
 # 5. Optional: Run integration tests (requires running services)
-docker-compose up -d
+docker compose up -d
 pytest tests/ -m integration -v
-docker-compose down
+docker compose down
 ```
 
 ## Pre-Commit Hooks
@@ -248,7 +248,7 @@ Tests are configured to run automatically on:
 **Solution**: Run pytest from project root: `cd /Users/ross/Projects/resnar && pytest`
 
 ### Issue: "Services unavailable" in integration tests
-**Solution**: Start services: `docker-compose up -d` before running integration tests
+**Solution**: Start services: `docker compose up -d` before running integration tests
 
 ### Issue: "Permission denied" for Docker tests
 **Solution**: Add your user to docker group: `sudo usermod -aG docker $USER`

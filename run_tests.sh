@@ -35,7 +35,7 @@ case $TEST_TYPE in
         ;;
     integration)
         echo -e "${YELLOW}Running Integration Tests...${NC}"
-        echo -e "${YELLOW}Make sure services are running: docker-compose up -d${NC}"
+        echo -e "${YELLOW}Make sure services are running: docker compose up -d${NC}"
         pytest tests/ -m integration -v
         ;;
     docker)

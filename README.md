@@ -32,7 +32,7 @@ Resnar is a sophisticated resume narrator application that combines:
 ## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
+- Docker (with Compose plugin)
 - Python 3.11+ (for local development)
 - Ollama (or use Docker version)
 
@@ -44,10 +44,10 @@ git clone https://github.com/yourusername/resnar.git
 cd resnar
 
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Check service status
-docker-compose ps
+docker compose ps
 
 # Access the UI
 open http://localhost:8080
@@ -61,7 +61,7 @@ pip install -r agent/requirements.txt
 pip install -r test-requirements.txt
 
 # Start services manually
-docker-compose up -d ollama chromadb mcp-servers
+docker compose up -d ollama chromadb mcp-servers
 
 # Run the Chainlit app
 chainlit run agent/ui/chainlit_app.py --host 0.0.0.0 --port 8080
@@ -128,7 +128,7 @@ SUBJECT_NAME=Ross
 
 ### Docker Compose Configuration
 
-See `docker-compose.yml` for detailed service configuration including:
+See `docker-compose.yml` for detailed service configuration (used with `docker compose` command) including:
 - Health checks for each service
 - Volume mounts for data persistence
 - Network configuration
@@ -243,19 +243,19 @@ pre-commit install
 
 ```bash
 # Build images
-docker-compose build
+docker compose build
 
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f agent
+docker compose logs -f agent
 
 # Stop services
-docker-compose down
+docker compose down
 
 # Remove volumes
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Health Checks
@@ -263,7 +263,7 @@ docker-compose down -v
 All services include health checks. Monitor them with:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 Test individual services:

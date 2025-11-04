@@ -52,8 +52,8 @@ Before committing any changes to GitHub, ensure all items in this checklist are 
 
 - [ ] **Services Running** (if testing integration)
   ```bash
-  docker-compose up -d
-  docker-compose ps  # All containers should be healthy
+  docker compose up -d
+  docker compose ps  # All containers should be healthy
   ```
 
 - [ ] **Integration Tests Pass** (if testing with services)
@@ -71,7 +71,7 @@ Before committing any changes to GitHub, ensure all items in this checklist are 
 
 - [ ] **Stop Services After Testing**
   ```bash
-  docker-compose down
+  docker compose down
   ```
 
 ### Documentation
@@ -181,19 +181,19 @@ Before deployment to production:
 
 - [ ] **Container Images Built**
   ```bash
-  docker-compose build
+  docker compose build
   ```
 
 - [ ] **All Services Start Successfully**
   ```bash
-  docker-compose up -d
+  docker compose up -d
   sleep 30  # Allow services to initialize
-  docker-compose ps
+  docker compose ps
   ```
 
 - [ ] **All Services Healthy**
   ```bash
-  docker-compose ps
+  docker compose ps
   # All containers should show "Up" status
   ```
 
@@ -254,7 +254,7 @@ git push origin your-branch-name
 | Issue | Fix |
 |-------|-----|
 | `ModuleNotFoundError: No module named 'agent'` | Run pytest from project root |
-| `Services unavailable` | Start Docker services: `docker-compose up -d` |
+| `Services unavailable` | Start Docker services: `docker compose up -d` |
 | `Black formatting issues` | Run `black agent/ mcp-servers/ tests/` |
 | `Import errors in tests` | Ensure PYTHONPATH is set correctly |
 | `Port already in use` | Check `lsof -i :8080` and kill process or use different port |
@@ -263,7 +263,7 @@ git push origin your-branch-name
 
 - All tests should pass locally before pushing
 - Integration tests are optional for commit but recommended
-- Always review docker-compose.yml for port conflicts
+- Always review docker-compose.yml for port conflicts (uses `docker compose` command)
 - Ensure PYTHONPATH is set in all Dockerfiles
 - Document any new test categories added
 
