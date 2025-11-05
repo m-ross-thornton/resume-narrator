@@ -155,6 +155,7 @@ class ResumeNarrator:
         """Create the LangChain agent"""
         _, AgentExecutor, create_react_agent, _, PromptTemplate, _ = _import_langchain()
         prompt = PromptTemplate(
+            input_variables=["tools", "tool_names", "chat_history"],
             template="""You are a personal AI assistant with specialized capabilities:
 
 1. **Resume Generation**: Create professional PDF resumes with various templates
@@ -175,5 +176,5 @@ When using tools, ensure you format the input correctly:
 
 Chat History:
 {chat_history}
-"""
+""",
         )
