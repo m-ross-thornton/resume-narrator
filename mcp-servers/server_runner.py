@@ -77,10 +77,17 @@ def main():
 
     manager = MCPServerManager()
 
-    if args.server == "all":
-        asyncio.run(manager.run_all_servers())
-    else:
-        asyncio.run(manager.run_server(args.server))
+    try:
+        if args.server == "all":
+            asyncio.run(manager.run_all_servers())
+        else:
+            asyncio.run(manager.run_server(args.server))
+    except KeyboardInterrupt:
+        print("\nServer stopped")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Fatal error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
