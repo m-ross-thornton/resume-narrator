@@ -56,16 +56,21 @@ class FastMCPClient:
 class ResumeNarrator:
     def __init__(self):
         # Lazy import to avoid Python 3.12 compatibility issues
-        Ollama, _, ConversationBufferMemory, _, _, _ = _import_langchain()
+        (
+            Ollama,
+            AgentExecutor,
+            create_react_agent,
+            ConversationBufferMemory,
+            PromptTemplate,
+            Tool,
+        ) = _import_langchain()
 
         self.llm = Ollama(
             model="llama3.2:latest",
             base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
         )
 
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history", return_messages=True
-        )
+        self.memory = ConversationBufferMemory()
 
         # Initialize MCP client
         self.mcp_client = FastMCPClient(
