@@ -4,61 +4,114 @@ Unified runner for all MCP servers
 Can run individual servers or all servers together
 """
 
-import asyncio
 import sys
-from pathlib import Path
+import subprocess
 import argparse
-from typing import List, Optional
-
-# Import all MCP servers
-from resume_pdf_server import mcp as resume_mcp
-from vector_db_server import mcp as vector_mcp
-from code_explorer_server import mcp as code_mcp
+from pathlib import Path
+from typing import List
+import signal
+import os
 
 
 class MCPServerManager:
-    """Manage multiple MCP servers"""
+    """Manage multiple MCP servers via subprocess"""
+
+    # Map of server names to their startup scripts
+    SERVERS = {
+        "resume": "resume_server.py",
+        "vector": "vector_server.py",
+        "code": "code_server.py",
+    }
 
     def __init__(self):
-        self.servers = {"resume": resume_mcp, "vector": vector_mcp, "code": code_mcp}
+        self.server_dir = Path(__file__).parent
+        self.processes = {}
 
-    async def run_server(self, server_name: str):
+    def run_server(self, server_name: str):
         """Run a single MCP server"""
-        if server_name not in self.servers:
+        if server_name not in self.SERVERS:
             print(f"Unknown server: {server_name}")
-            print(f"Available servers: {list(self.servers.keys())}")
+            print(f"Available servers: {list(self.SERVERS.keys())}")
             sys.exit(1)
 
-        server = self.servers[server_name]
+        script = self.SERVERS[server_name]
+        script_path = self.server_dir / script
+
         print(f"Starting {server_name} MCP server...")
 
         try:
-            await server.run()
+            # Run the server script
+            subprocess.run(
+                [sys.executable, str(script_path)],
+                cwd=str(self.server_dir),
+            )
         except KeyboardInterrupt:
             print(f"\n{server_name} server stopped")
         except Exception as e:
             print(f"Error running {server_name} server: {e}")
             sys.exit(1)
 
-    async def run_all_servers(self):
-        """Run all MCP servers concurrently"""
+    def run_all_servers(self):
+        """Run all MCP servers concurrently as subprocesses"""
         print("Starting all MCP servers...")
 
-        tasks = []
-        for name, server in self.servers.items():
+        processes = {}
+        for name, script in self.SERVERS.items():
+            script_path = self.server_dir / script
             print(f"  - Starting {name} server...")
-            task = asyncio.create_task(server.run())
-            tasks.append(task)
+
+            try:
+                # Run server subprocess with inherited stdio
+                # FastMCP servers communicate via stdio
+                process = subprocess.Popen(
+                    [sys.executable, str(script_path)],
+                    cwd=str(self.server_dir),
+                    stdin=subprocess.DEVNULL,  # Not accepting interactive input in Docker
+                    # Keep stdout/stderr connected to parent (Docker container output)
+                )
+                processes[name] = process
+            except Exception as e:
+                print(f"Error starting {name} server: {e}")
+
+        print(f"All {len(processes)} servers are running. Press Ctrl+C to stop.")
+
+        def signal_handler(signum, frame):
+            print("\nStopping all servers...")
+            for name, process in processes.items():
+                try:
+                    process.terminate()
+                    process.wait(timeout=5)
+                except Exception as e:
+                    print(f"Error stopping {name} server: {e}")
+                    process.kill()
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
         try:
-            await asyncio.gather(*tasks)
+            # Keep the process alive and monitor servers
+            # Even if all subprocesses exit, keep the main process running
+            # (in case MCP clients reconnect later)
+            while True:
+                # Check if any process has exited
+                remaining = {}
+                for name, process in processes.items():
+                    if process.poll() is None:
+                        remaining[name] = process
+                    else:
+                        print(f"Server {name} exited with code {process.returncode}")
+                        # Optionally: restart the server
+                        # For now, just leave it down
+                processes = remaining
+
+                # Sleep briefly to avoid busy-waiting
+                import time
+
+                time.sleep(5)
+
         except KeyboardInterrupt:
-            print("\nStopping all servers...")
-            for task in tasks:
-                task.cancel()
-        except Exception as e:
-            print(f"Error running servers: {e}")
-            sys.exit(1)
+            signal_handler(signal.SIGINT, None)
 
 
 def main():
@@ -75,31 +128,22 @@ def main():
 
     args = parser.parse_args()
 
-    manager = MCPServerManager()
-
     try:
+        manager = MCPServerManager()
+
         if args.server == "all":
-            asyncio.run(manager.run_all_servers())
+            manager.run_all_servers()
         else:
-            asyncio.run(manager.run_server(args.server))
+            manager.run_server(args.server)
+
     except KeyboardInterrupt:
         print("\nServer stopped")
         sys.exit(0)
-    except RuntimeError as e:
-        error_msg = str(e).lower()
-        if (
-            "already running asyncio" in error_msg
-            or "event loop is running" in error_msg
-        ):
-            print(f"Fatal error: {e}", file=sys.stderr)
-            print(
-                "The event loop is already running. This might be due to the FastMCP server initialization.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        raise
     except Exception as e:
         print(f"Fatal error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc()
         sys.exit(1)
 
 
