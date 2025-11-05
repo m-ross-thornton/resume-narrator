@@ -85,6 +85,19 @@ def main():
     except KeyboardInterrupt:
         print("\nServer stopped")
         sys.exit(0)
+    except RuntimeError as e:
+        error_msg = str(e).lower()
+        if (
+            "already running asyncio" in error_msg
+            or "event loop is running" in error_msg
+        ):
+            print(f"Fatal error: {e}", file=sys.stderr)
+            print(
+                "The event loop is already running. This might be due to the FastMCP server initialization.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        raise
     except Exception as e:
         print(f"Fatal error: {e}", file=sys.stderr)
         sys.exit(1)
