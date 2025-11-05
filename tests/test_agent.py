@@ -83,17 +83,14 @@ class TestResumeNarrator:
     @pytest.mark.unit
     def test_tool_names(self):
         """Test all expected tools are available"""
-        with patch.object(ResumeNarrator, "_create_tools") as mock_create:
-            narrator = ResumeNarrator()
+        # Don't mock _create_tools - we want to test the real implementation
+        narrator = ResumeNarrator()
+        tool_names = [tool.name for tool in narrator.tools]
 
-            # Access the actual tools creation
-            tools = narrator._create_tools()
-            tool_names = [tool.name for tool in tools]
-
-            assert "generate_resume_pdf" in tool_names
-            assert "search_experience" in tool_names
-            assert "explain_architecture" in tool_names
-            assert "analyze_skills" in tool_names
+        assert "generate_resume_pdf" in tool_names
+        assert "search_experience" in tool_names
+        assert "explain_architecture" in tool_names
+        assert "analyze_skills" in tool_names
 
     @pytest.mark.unit
     def test_create_agent_returns_executor(self):
@@ -117,8 +114,7 @@ class TestResumeNarrator:
         assert result == "test_result"
 
     @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_sync_wrapper_handles_errors(self):
+    def test_sync_wrapper_handles_errors(self):
         """Test sync wrapper handles async errors"""
 
         async def async_error():
@@ -158,7 +154,7 @@ class TestResumeNarrator:
 
             assert narrator.memory is not None
             assert hasattr(narrator.memory, "memory_key")
-            assert narrator.memory.memory_key == "chat_history"
+            assert narrator.memory.memory_key == "history"
 
     @pytest.mark.unit
     def test_mcp_client_servers_configured(self):

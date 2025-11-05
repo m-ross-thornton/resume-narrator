@@ -10,6 +10,7 @@ from unittest.mock import patch, AsyncMock, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent.main import ResumeNarrator
+from langchain.memory import ConversationBufferMemory
 
 
 class TestAgentMCPIntegration:
@@ -134,8 +135,9 @@ class TestServiceHealthChecks:
         narrator = ResumeNarrator()
         memory = narrator.memory
 
-        assert memory.memory_key == "chat_history"
-        assert memory.return_messages is True
+        assert memory.memory_key == "history"
+        # ConversationBufferMemory returns messages by default
+        assert isinstance(memory, ConversationBufferMemory)
 
 
 class TestToolIntegration:

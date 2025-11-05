@@ -118,7 +118,7 @@ class ResumeNarrator:
         tools.append(
             Tool(
                 name="explain_architecture",
-                description="Explain how the chatbot works. Input should be component name (agent, mcp_servers, deployment, or full_stack).",
+                description="Explain the architecture of how the chatbot works. Input should be component name (agent, mcp_servers, deployment, or full_stack).",
                 func=lambda x: self._sync_wrapper(
                     self.mcp_client.call_tool(
                         "code", "explain_architecture", {"component": x}
@@ -153,9 +153,22 @@ class ResumeNarrator:
 
     def create_agent(self):
         """Create the LangChain agent"""
-        _, AgentExecutor, create_react_agent, _, PromptTemplate, _ = _import_langchain()
+        (
+            Ollama,
+            AgentExecutor,
+            create_react_agent,
+            ConversationBufferMemory,
+            PromptTemplate,
+            Tool,
+        ) = _import_langchain()
+
         prompt = PromptTemplate(
-            input_variables=["tools", "tool_names", "chat_history"],
+            input_variables=[
+                "tools",
+                "tool_names",
+                "agent_scratchpad",
+                "input",
+            ],
             template="""You are a personal AI assistant with specialized capabilities:
 
 1. **Resume Generation**: Create professional PDF resumes with various templates
@@ -174,7 +187,19 @@ When using tools, ensure you format the input correctly:
 - For explain_architecture: Specify component (agent, mcp_servers, deployment, or full_stack)
 - For analyze_skills: No input needed
 
-Chat History:
-{chat_history}
+Begin!
+
+Question: {input}
+Thought: {agent_scratchpad}
 """,
         )
+
+        # Create the agent
+        agent = create_react_agent(self.llm, self.tools, prompt)
+
+        # Create the agent executor
+        agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=agent, tools=self.tools, verbose=True, max_iterations=10
+        )
+
+        return agent_executor

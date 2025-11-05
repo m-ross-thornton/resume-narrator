@@ -4,9 +4,58 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import json
+import importlib.util
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+def import_mcp_module(module_name):
+    """Import a module from mcp-servers directory (with hyphen)
+
+    Mock external dependencies that may not be installed during testing.
+    """
+    # Mock external dependencies before importing
+    from unittest.mock import MagicMock, Mock
+
+    # Pre-mock modules that might not be installed or slow to import
+    # Create proper mock packages with submodules
+    mock_modules = [
+        "fastmcp",
+        "chromadb",
+        "chromadb.config",
+        "sentence_transformers",
+        "reportlab",
+        "reportlab.lib",
+        "reportlab.lib.pagesizes",
+        "reportlab.lib.styles",
+        "reportlab.lib.units",
+        "reportlab.lib.enums",
+        "reportlab.lib.colors",
+        "reportlab.platypus",
+        "pypdf",
+        "docx",
+        "python_docx",
+    ]
+
+    # Create all mock modules with proper package hierarchy
+    mock_objects = {}
+    for mod_name in sorted(mock_modules):
+        if mod_name not in sys.modules:
+            mock_objects[mod_name] = MagicMock()
+            sys.modules[mod_name] = mock_objects[mod_name]
+
+    mcp_servers_dir = Path(__file__).parent.parent / "mcp-servers"
+    module_file = mcp_servers_dir / f"{module_name}.py"
+
+    if not module_file.exists():
+        raise ModuleNotFoundError(f"Cannot find {module_file}")
+
+    spec = importlib.util.spec_from_file_location(module_name, module_file)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestResumePDFServer:
@@ -15,7 +64,8 @@ class TestResumePDFServer:
     @pytest.mark.unit
     def test_resume_request_model(self):
         """Test ResumeRequest model validation"""
-        from mcp_servers.resume_pdf_server import ResumeRequest
+        resume_pdf_server = import_mcp_module("resume_pdf_server")
+        ResumeRequest = resume_pdf_server.ResumeRequest
 
         request = ResumeRequest(
             template="professional",
@@ -29,7 +79,8 @@ class TestResumePDFServer:
     @pytest.mark.unit
     def test_resume_request_defaults(self):
         """Test ResumeRequest has sensible defaults"""
-        from mcp_servers.resume_pdf_server import ResumeRequest
+        resume_pdf_server = import_mcp_module("resume_pdf_server")
+        ResumeRequest = resume_pdf_server.ResumeRequest
 
         request = ResumeRequest()
 
@@ -40,7 +91,8 @@ class TestResumePDFServer:
     @pytest.mark.unit
     def test_resume_template_validation(self):
         """Test resume template options"""
-        from mcp_servers.resume_pdf_server import ResumeRequest
+        resume_pdf_server = import_mcp_module("resume_pdf_server")
+        ResumeRequest = resume_pdf_server.ResumeRequest
 
         templates = ["professional", "creative", "technical", "executive"]
         for template in templates:
@@ -50,7 +102,8 @@ class TestResumePDFServer:
     @pytest.mark.unit
     def test_resume_data_class(self):
         """Test ResumeData class loading"""
-        from mcp_servers.resume_pdf_server import ResumeData
+        resume_pdf_server = import_mcp_module("resume_pdf_server")
+        ResumeData = resume_pdf_server.ResumeData
 
         # This will fail if resume_data.json doesn't exist, which is expected
         with pytest.raises(FileNotFoundError):
@@ -59,7 +112,8 @@ class TestResumePDFServer:
     @pytest.mark.unit
     def test_resume_request_custom_output_filename(self):
         """Test custom output filename in ResumeRequest"""
-        from mcp_servers.resume_pdf_server import ResumeRequest
+        resume_pdf_server = import_mcp_module("resume_pdf_server")
+        ResumeRequest = resume_pdf_server.ResumeRequest
 
         request = ResumeRequest(output_filename="custom_resume.pdf")
 
@@ -72,7 +126,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_vector_search_request_model(self):
         """Test VectorSearchRequest model validation"""
-        from mcp_servers.vector_db_server import VectorSearchRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        VectorSearchRequest = vector_db_server.VectorSearchRequest
 
         request = VectorSearchRequest(query="python projects")
 
@@ -84,7 +139,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_vector_search_custom_parameters(self):
         """Test VectorSearchRequest with custom parameters"""
-        from mcp_servers.vector_db_server import VectorSearchRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        VectorSearchRequest = vector_db_server.VectorSearchRequest
 
         request = VectorSearchRequest(
             query="machine learning",
@@ -101,7 +157,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_document_index_request_model(self):
         """Test DocumentIndexRequest model validation"""
-        from mcp_servers.vector_db_server import DocumentIndexRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        DocumentIndexRequest = vector_db_server.DocumentIndexRequest
 
         documents = ["Document 1", "Document 2"]
         request = DocumentIndexRequest(documents=documents)
@@ -114,7 +171,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_document_index_with_metadata(self):
         """Test DocumentIndexRequest with metadata"""
-        from mcp_servers.vector_db_server import DocumentIndexRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        DocumentIndexRequest = vector_db_server.DocumentIndexRequest
 
         documents = ["Doc1", "Doc2"]
         metadata = [
@@ -130,7 +188,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_vector_db_manager_initialization(self):
         """Test VectorDBManager initialization"""
-        from mcp_servers.vector_db_server import VectorDBManager
+        vector_db_server = import_mcp_module("vector_db_server")
+        VectorDBManager = vector_db_server.VectorDBManager
 
         # This will try to create a client - may fail without ChromaDB running
         with patch("chromadb.PersistentClient") as mock_chroma:
@@ -144,7 +203,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_similarity_threshold_validation(self):
         """Test similarity threshold is between 0 and 1"""
-        from mcp_servers.vector_db_server import VectorSearchRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        VectorSearchRequest = vector_db_server.VectorSearchRequest
 
         # Valid thresholds
         for threshold in [0.0, 0.5, 0.9, 1.0]:
@@ -154,7 +214,8 @@ class TestVectorDBServer:
     @pytest.mark.unit
     def test_top_k_positive(self):
         """Test top_k must be positive"""
-        from mcp_servers.vector_db_server import VectorSearchRequest
+        vector_db_server = import_mcp_module("vector_db_server")
+        VectorSearchRequest = vector_db_server.VectorSearchRequest
 
         request = VectorSearchRequest(query="test", top_k=1)
         assert request.top_k > 0
@@ -172,7 +233,8 @@ class TestCodeExplorerServer:
     def test_code_explorer_import(self):
         """Test code explorer server can be imported"""
         try:
-            from mcp_servers.code_explorer_server import mcp as code_mcp
+            code_explorer_server = import_mcp_module("code_explorer_server")
+            code_mcp = code_explorer_server.mcp
 
             assert code_mcp is not None
         except ImportError as e:
@@ -181,7 +243,8 @@ class TestCodeExplorerServer:
     @pytest.mark.unit
     def test_code_explorer_has_mcp_instance(self):
         """Test code explorer has FastMCP instance"""
-        from mcp_servers.code_explorer_server import mcp
+        code_explorer_server = import_mcp_module("code_explorer_server")
+        mcp = code_explorer_server.mcp
 
         assert mcp is not None
         assert hasattr(mcp, "run")
@@ -194,33 +257,35 @@ class TestMCPServerIntegration:
     def test_all_servers_importable(self):
         """Test all MCP servers can be imported"""
         servers = [
-            "mcp_servers.resume_pdf_server",
-            "mcp_servers.vector_db_server",
-            "mcp_servers.code_explorer_server",
+            "resume_pdf_server",
+            "vector_db_server",
+            "code_explorer_server",
         ]
 
-        for server_module in servers:
+        for server_name in servers:
             try:
-                __import__(server_module)
-            except ImportError as e:
-                pytest.fail(f"Failed to import {server_module}: {e}")
+                import_mcp_module(server_name)
+            except Exception as e:
+                pytest.fail(f"Failed to import {server_name}: {e}")
 
     @pytest.mark.unit
     def test_server_runner_exists(self):
         """Test server runner script exists"""
-        from mcp_servers.server_runner import MCPServerManager
+        server_runner = import_mcp_module("server_runner")
+        MCPServerManager = server_runner.MCPServerManager
 
         assert MCPServerManager is not None
 
     @pytest.mark.unit
     def test_mcp_server_manager_initialization(self):
         """Test MCPServerManager initializes correctly"""
-        from mcp_servers.server_runner import MCPServerManager
+        server_runner = import_mcp_module("server_runner")
+        MCPServerManager = server_runner.MCPServerManager
 
         manager = MCPServerManager()
 
-        assert manager.servers is not None
-        assert len(manager.servers) >= 3
-        assert "resume" in manager.servers
-        assert "vector" in manager.servers
-        assert "code" in manager.servers
+        assert manager.SERVERS is not None
+        assert len(manager.SERVERS) >= 3
+        assert "resume" in manager.SERVERS
+        assert "vector" in manager.SERVERS
+        assert "code" in manager.SERVERS

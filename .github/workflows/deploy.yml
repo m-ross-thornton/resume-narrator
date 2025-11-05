@@ -12,19 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           pip install -r agent/requirements.txt
-          pip install pytest pytest-asyncio
-      
+          pip install -r test-requirements.txt
+
       - name: Run tests
-        run: pytest tests/
+        run: pytest tests/ -v --tb=short
 
   build-and-push:
     needs: test
@@ -45,5 +45,5 @@ jobs:
       
       - name: Build and push
         run: |
-          docker-compose build
-          docker-compose push
+          docker compose build
+          docker compose push
