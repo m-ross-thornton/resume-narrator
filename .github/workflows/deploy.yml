@@ -34,15 +34,30 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Free up disk space
         run: |
+          echo "Disk space before cleanup:"
+          df -h
+
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
-          docker image prune -a -f
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+
+          # Clean everything possible
+          docker system prune -af --volumes
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-options: |
+            image=moby/buildkit:latest
+            network=host
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
@@ -50,7 +65,31 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push
+      - name: Build and push agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.agent
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-agent:latest
+            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-agent:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Clean up between builds
         run: |
-          docker compose build
-          docker compose push
+          docker system prune -af --volumes
+          df -h
+
+      - name: Build and push mcp-servers image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.mcp
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-mcp:latest
+            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-mcp:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

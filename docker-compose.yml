@@ -29,6 +29,7 @@ services:
       retries: 3
 
   mcp-servers:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
     build:
       context: .
       dockerfile: Dockerfile.mcp
@@ -53,6 +54,7 @@ services:
       retries: 3
 
   agent:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-agent:latest
     build:
       context: .
       dockerfile: Dockerfile.agent
