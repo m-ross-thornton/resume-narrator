@@ -67,13 +67,15 @@ jobs:
 
       - name: Build and push agent image
         uses: docker/build-push-action@v5
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         with:
           context: .
           file: ./Dockerfile.agent
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-agent:latest
-            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-agent:${{ github.sha }}
+            ${{ env.DOCKER_USERNAME }}/resume-narrator-agent:latest
+            ${{ env.DOCKER_USERNAME }}/resume-narrator-agent:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -84,12 +86,14 @@ jobs:
 
       - name: Build and push mcp-servers image
         uses: docker/build-push-action@v5
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         with:
           context: .
           file: ./Dockerfile.mcp
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-mcp:latest
-            ${{ secrets.DOCKER_USERNAME }}/resume-narrator-mcp:${{ github.sha }}
+            ${{ env.DOCKER_USERNAME }}/resume-narrator-mcp:latest
+            ${{ env.DOCKER_USERNAME }}/resume-narrator-mcp:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
