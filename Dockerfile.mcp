@@ -3,17 +3,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (minimal set needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
 COPY mcp-servers/requirements.txt .
 
-# Install Python packages
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python packages with optimizations
+RUN pip install --no-cache-dir --no-deps -r requirements.txt \
+    && pip install --no-cache-dir sentence-transformers fastmcp
 
 # Copy MCP server code
 COPY mcp-servers/ ./mcp-servers/
@@ -21,6 +23,10 @@ COPY data/ ./data/
 
 # Set PYTHONPATH to include app directory
 ENV PYTHONPATH=/app/mcp-servers:$PYTHONPATH
+
+# Reduce image size by removing unused files
+RUN find /usr/local/lib/python3.11/site-packages -type d -name tests -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 # Default command runs all servers
 CMD ["python", "/app/mcp-servers/server_runner.py", "--server", "all"]
