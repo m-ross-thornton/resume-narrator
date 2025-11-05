@@ -33,7 +33,7 @@ Resnar is a sophisticated resume narrator application that combines:
 
 ### Prerequisites
 - Docker (with Compose plugin)
-- Python 3.11+ (for local development)
+- Python 3.11+ (for local development - **required** for chainlit/langchain/pydantic compatibility)
 - Ollama (or use Docker version)
 
 ### Option 1: Docker (Recommended)
@@ -313,6 +313,21 @@ See [COMMIT_CHECKLIST.md](COMMIT_CHECKLIST.md) for detailed pre-commit requireme
 
 ## Troubleshooting
 
+### Python Version Issues (Local Development)
+
+If you get import errors with `chainlit`, `langchain`, or `pydantic`:
+```bash
+# Check your Python version
+python --version
+
+# Must be Python 3.11 or higher
+# If you have Python 3.12+, you may encounter dependency conflicts
+# Solution: Use the Docker version instead (Option 1 in Quick Start)
+# Or downgrade to Python 3.11: pyenv local 3.11.x
+```
+
+**Note**: Docker uses Python 3.11, so containers should work fine even if your local environment has Python 3.12+.
+
 ### Port Already in Use
 
 ```bash
@@ -329,16 +344,16 @@ kill -9 <PID>
 
 ```bash
 # Check service logs
-docker-compose logs agent
-docker-compose logs ollama
-docker-compose logs chromadb
+docker compose logs agent
+docker compose logs ollama
+docker compose logs chromadb
 
 # Restart a service
-docker-compose restart agent
+docker compose restart agent
 
 # Full reset
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### Dependencies Issues
@@ -351,7 +366,7 @@ pip install --upgrade -r agent/requirements.txt
 pip check
 
 # Rebuild Docker images
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 See [TESTING.md](TESTING.md) for more troubleshooting tips.
