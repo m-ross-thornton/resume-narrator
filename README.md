@@ -315,18 +315,28 @@ See [COMMIT_CHECKLIST.md](COMMIT_CHECKLIST.md) for detailed pre-commit requireme
 
 ### Python Version Issues (Local Development)
 
-If you get import errors with `chainlit`, `langchain`, or `pydantic`:
+**Python 3.12+ has fundamental compatibility issues with chainlit/langchain/pydantic.**
+
+If you get errors like `TypeError: ForwardRef._evaluate() missing 1 required keyword-only argument: 'recursive_guard'`:
+
 ```bash
 # Check your Python version
 python --version
 
-# Must be Python 3.11 or higher
-# If you have Python 3.12+, you may encounter dependency conflicts
-# Solution: Use the Docker version instead (Option 1 in Quick Start)
-# Or downgrade to Python 3.11: pyenv local 3.11.x
+# You MUST use Python 3.11 for local development
+# Python 3.12+ will NOT work for the agent module
+
+# Solutions:
+# 1. Use Docker (RECOMMENDED - works on any Python version)
+#    docker compose up -d
+#
+# 2. Switch to Python 3.11 locally:
+#    pyenv install 3.11.10
+#    pyenv local 3.11.10
+#    pip install -r agent/requirements.txt
 ```
 
-**Note**: Docker uses Python 3.11, so containers should work fine even if your local environment has Python 3.12+.
+**Recommendation**: Use Docker (Option 1 in Quick Start) unless you specifically need to develop locally on Python 3.11.
 
 ### Port Already in Use
 

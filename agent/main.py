@@ -1,13 +1,26 @@
 # agent/main.py
-from langchain_community.llms import Ollama
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
-from langchain.tools import Tool
 import httpx
 import json
 from typing import Dict, Any, List
 import os
+
+
+def _import_langchain():
+    """Lazy import langchain to avoid compatibility issues on Python 3.12"""
+    from langchain_community.llms import Ollama
+    from langchain.agents import AgentExecutor, create_react_agent
+    from langchain.memory import ConversationBufferMemory
+    from langchain.prompts import PromptTemplate
+    from langchain.tools import Tool
+
+    return (
+        Ollama,
+        AgentExecutor,
+        create_react_agent,
+        ConversationBufferMemory,
+        PromptTemplate,
+        Tool,
+    )
 
 
 class FastMCPClient:
@@ -42,6 +55,9 @@ class FastMCPClient:
 
 class ResumeNarrator:
     def __init__(self):
+        # Lazy import to avoid Python 3.12 compatibility issues
+        Ollama, _, ConversationBufferMemory, _, _, _ = _import_langchain()
+
         self.llm = Ollama(
             model="llama3.2:latest",
             base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
@@ -62,8 +78,9 @@ class ResumeNarrator:
 
         self.tools = self._create_tools()
 
-    def _create_tools(self) -> List[Tool]:
+    def _create_tools(self) -> List:
         """Create LangChain tools from MCP servers"""
+        _, _, _, _, _, Tool = _import_langchain()
         tools = []
 
         # Resume PDF Generation Tool
@@ -131,6 +148,7 @@ class ResumeNarrator:
 
     def create_agent(self):
         """Create the LangChain agent"""
+        _, AgentExecutor, create_react_agent, _, PromptTemplate, _ = _import_langchain()
         prompt = PromptTemplate(
             template="""You are a personal AI assistant with specialized capabilities:
 
