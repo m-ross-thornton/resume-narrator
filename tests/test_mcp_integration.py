@@ -125,9 +125,10 @@ class TestServiceHealthChecks:
     @pytest.mark.integration
     def test_llm_model_configured(self):
         """Test LLM is configured with correct model"""
+        expected_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M")
         narrator = ResumeNarrator()
 
-        assert narrator.llm.model == "llama3.2:latest"
+        assert narrator.llm.model == expected_model
 
     @pytest.mark.integration
     def test_memory_configured(self):
