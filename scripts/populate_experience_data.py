@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Script to populate experience data from raw sources (CSV, PDF) into experience JSONs
+Script to populate experience data from raw sources using Ollama for parsing
 
 Reads from:
 - data/raw/Profile.csv - LinkedIn profile export
 - data/raw/Thornton Resume 2025.8.pdf - PDF resume
 
-Writes to:
+Uses Ollama to parse and structure the data into:
 - data/experience/work_history.json
 - data/experience/skills.json
-- data/experience/projects.json (if not already populated)
+- data/experience/projects.json
 """
 
 import json
@@ -17,8 +17,23 @@ import csv
 from pathlib import Path
 from typing import List, Dict, Any
 import sys
+import re
+
+try:
+    import requests
+
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 # Try to import PDF libraries
+try:
+    import pdfplumber
+
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
 try:
     import PyPDF2
 
@@ -26,12 +41,131 @@ try:
 except ImportError:
     HAS_PYPDF2 = False
 
-try:
-    import pdfplumber
 
-    HAS_PDFPLUMBER = True
-except ImportError:
-    HAS_PDFPLUMBER = False
+class OllamaDocumentParser:
+    """Use Ollama to parse and structure experience documents"""
+
+    def __init__(self, ollama_host: str = "http://localhost:11434"):
+        self.ollama_host = ollama_host
+        self.model = "llama3.1:8b-instruct-q4_K_M"
+
+        if not HAS_REQUESTS:
+            raise ImportError(
+                "requests library required. Install with: pip install requests"
+            )
+
+    def call_ollama(self, prompt: str) -> str:
+        """Call Ollama API to generate response"""
+        try:
+            response = requests.post(
+                f"{self.ollama_host}/api/generate",
+                json={"model": self.model, "prompt": prompt, "stream": False},
+                timeout=60,
+            )
+            response.raise_for_status()
+            return response.json().get("response", "")
+        except requests.exceptions.ConnectionError as e:
+            print(f"    ⚠ Could not connect to Ollama: {e}")
+            return ""
+        except requests.exceptions.HTTPError as e:
+            print(f"    ⚠ Ollama API error (likely out of memory): {e}")
+            return ""
+        except Exception as e:
+            print(f"    ⚠ Error calling Ollama: {e}")
+            return ""
+
+    def parse_work_history(self, resume_text: str) -> List[Dict[str, Any]]:
+        """Parse work history from resume text using Ollama"""
+        print("  Parsing work history with Ollama...")
+
+        prompt = f"""Extract work history from this resume text and return ONLY valid JSON.
+
+Resume text:
+{resume_text[:2000]}
+
+Return a JSON array of work experience entries with this exact structure:
+[
+  {{
+    "company": "Company Name",
+    "title": "Job Title",
+    "duration": "Time duration",
+    "description": "Brief description of role",
+    "achievements": ["Achievement 1", "Achievement 2"],
+    "skills": ["Skill1", "Skill2"]
+  }}
+]
+
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
+
+    def parse_skills(
+        self, resume_text: str, profile_text: str = ""
+    ) -> List[Dict[str, Any]]:
+        """Parse skills from resume using Ollama"""
+        print("  Parsing skills with Ollama...")
+
+        combined_text = (resume_text + "\n" + profile_text)[:2000]
+
+        prompt = f"""Extract technical and domain skills from this text and return ONLY valid JSON.
+
+Text:
+{combined_text}
+
+Return a JSON array of skills with this exact structure:
+[
+  {{
+    "name": "Skill Name",
+    "proficiency": "Expert|Advanced|Intermediate|Beginner",
+    "category": "Category (e.g., AI/ML, Languages, Tools, Cloud)"
+  }}
+]
+
+Focus on technical skills, programming languages, frameworks, tools, and domain expertise.
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
+
+    def parse_projects(self, resume_text: str) -> List[Dict[str, Any]]:
+        """Parse notable projects from resume using Ollama"""
+        print("  Parsing projects with Ollama...")
+
+        prompt = f"""Extract notable projects from this resume text and return ONLY valid JSON.
+
+Resume text:
+{resume_text[:2000]}
+
+Return a JSON array of projects with this exact structure:
+[
+  {{
+    "name": "Project Name",
+    "description": "Brief description",
+    "technologies": ["Tech1", "Tech2"],
+    "role": "Your role in project",
+    "duration": "Project duration",
+    "achievements": ["Achievement1", "Achievement2"]
+  }}
+]
+
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
+
+    def _parse_json_response(self, response: str, default: Any = None) -> Any:
+        """Safely parse JSON response from Ollama"""
+        try:
+            # Try to find JSON in the response (in case there's extra text)
+            json_match = re.search(r"\[[\s\S]*\]|\{[\s\S]*\}", response)
+            if json_match:
+                json_str = json_match.group(0)
+                return json.loads(json_str)
+            return default if default is not None else []
+        except json.JSONDecodeError:
+            print(f"    ⚠ Could not parse JSON response: {response[:100]}")
+            return default if default is not None else []
 
 
 class ExperienceDataPopulator:
@@ -44,6 +178,15 @@ class ExperienceDataPopulator:
 
         # Ensure directories exist
         self.experience_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize Ollama parser
+        try:
+            self.parser = OllamaDocumentParser()
+            self.has_ollama = True
+        except (ImportError, ConnectionError) as e:
+            print(f"Warning: {e}")
+            print("Will use fallback data generation\n")
+            self.has_ollama = False
 
     def load_csv_profile(self) -> Dict[str, Any]:
         """Load profile data from CSV"""
@@ -78,8 +221,6 @@ class ExperienceDataPopulator:
         # Try pdfplumber first (better for structured extraction)
         if HAS_PDFPLUMBER:
             try:
-                import pdfplumber
-
                 with pdfplumber.open(pdf_file) as pdf:
                     text = ""
                     for page in pdf.pages:
@@ -101,22 +242,26 @@ class ExperienceDataPopulator:
                 print(f"Error extracting PDF with PyPDF2: {e}")
 
         print(
-            "Warning: No PDF extraction library available. Install pdfplumber or PyPDF2"
+            "Warning: No PDF extraction library available. "
+            "Install pdfplumber or PyPDF2"
         )
         return ""
 
-    def create_work_history(self, profile: Dict) -> List[Dict[str, Any]]:
-        """Create work history from profile data"""
-        # For now, return a template that users can populate
-        work_history = [
+    def create_work_history_fallback(self, profile: Dict) -> List[Dict[str, Any]]:
+        """Fallback work history if Ollama unavailable"""
+        return [
             {
                 "company": "Department of Defense (DoD)",
                 "title": "Senior AI/ML Engineer and Data Scientist",
                 "duration": "12+ years",
-                "description": profile.get("Summary", ""),
+                "description": profile.get(
+                    "Summary",
+                    "Senior AI/ML Engineer and Data Scientist with extensive experience",
+                ),
                 "achievements": [
                     "Architected and deployed Generative AI solutions",
-                    "Integrated RAG, Azure OpenAI, and LangChain with enterprise platforms",
+                    "Integrated RAG, Azure OpenAI, and LangChain with enterprise "
+                    "platforms",
                     "Delivered mission-critical solutions within DoD sector",
                 ],
                 "skills": [
@@ -131,12 +276,9 @@ class ExperienceDataPopulator:
             }
         ]
 
-        return work_history
-
-    def create_skills(self, profile: Dict) -> List[Dict[str, Any]]:
-        """Create skills list from profile"""
-        # Extract from summary and other fields
-        default_skills = [
+    def create_skills_fallback(self, profile: Dict) -> List[Dict[str, Any]]:
+        """Fallback skills if Ollama unavailable"""
+        return [
             {
                 "name": "Generative AI",
                 "proficiency": "Expert",
@@ -149,14 +291,22 @@ class ExperienceDataPopulator:
                 "proficiency": "Advanced",
                 "category": "Cloud/AI",
             },
-            {"name": "LangChain", "proficiency": "Advanced", "category": "Frameworks"},
+            {
+                "name": "LangChain",
+                "proficiency": "Advanced",
+                "category": "Frameworks",
+            },
             {"name": "Palantir", "proficiency": "Advanced", "category": "Tools"},
             {
                 "name": "Microsoft Power Platform",
                 "proficiency": "Advanced",
                 "category": "Enterprise",
             },
-            {"name": "SharePoint", "proficiency": "Advanced", "category": "Enterprise"},
+            {
+                "name": "SharePoint",
+                "proficiency": "Advanced",
+                "category": "Enterprise",
+            },
             {
                 "name": "Data Pipelines",
                 "proficiency": "Advanced",
@@ -165,11 +315,8 @@ class ExperienceDataPopulator:
             {"name": "SQL", "proficiency": "Advanced", "category": "Databases"},
         ]
 
-        return default_skills
-
-    def create_projects(self) -> List[Dict[str, Any]]:
-        """Create projects list - users should customize this"""
-        # Return projects from existing file if it has data, otherwise use template
+    def create_projects_fallback(self) -> List[Dict[str, Any]]:
+        """Fallback projects if Ollama unavailable"""
         projects_file = self.experience_dir / "projects.json"
 
         if projects_file.exists():
@@ -180,7 +327,6 @@ class ExperienceDataPopulator:
             except Exception:
                 pass
 
-        # Return default template
         return [
             {
                 "name": "E-Commerce Platform Modernization",
@@ -217,7 +363,7 @@ class ExperienceDataPopulator:
         else:
             print("   ⚠ No profile data found")
 
-        # Extract PDF (optional for later use)
+        # Extract PDF
         print("\n2. Extracting PDF resume...")
         pdf_text = self.extract_pdf_text()
         if pdf_text:
@@ -227,25 +373,48 @@ class ExperienceDataPopulator:
 
         # Create work history
         print("\n3. Creating work history...")
-        work_history = self.create_work_history(profile)
+        if self.has_ollama and pdf_text:
+            work_history = self.parser.parse_work_history(pdf_text)
+            if not work_history:
+                print("   ⚠ Ollama returned empty, using fallback")
+                work_history = self.create_work_history_fallback(profile)
+        else:
+            work_history = self.create_work_history_fallback(profile)
+
         self.save_json("work_history.json", {"work_history": work_history})
 
         # Create skills
         print("\n4. Creating skills list...")
-        skills = self.create_skills(profile)
+        if self.has_ollama and pdf_text:
+            profile_text = f"{profile.get('Summary', '')} {profile.get('Headline', '')}"
+            skills = self.parser.parse_skills(pdf_text, profile_text)
+            if not skills:
+                print("   ⚠ Ollama returned empty, using fallback")
+                skills = self.create_skills_fallback(profile)
+        else:
+            skills = self.create_skills_fallback(profile)
+
         self.save_json("skills.json", {"skills": skills})
 
-        # Create/preserve projects
-        print("\n5. Handling projects...")
-        projects = self.create_projects()
+        # Create projects
+        print("\n5. Creating projects...")
+        if self.has_ollama and pdf_text:
+            projects = self.parser.parse_projects(pdf_text)
+            if not projects:
+                print("   ⚠ Ollama returned empty, using fallback")
+                projects = self.create_projects_fallback()
+        else:
+            projects = self.create_projects_fallback()
+
         self.save_json("projects.json", {"projects": projects})
 
         print("\n✅ Experience data population complete!")
         print("\nNext steps:")
         print("1. Review the generated JSON files in data/experience/")
-        print("2. Customize work_history.json with your actual work experience")
-        print("3. Customize projects.json with your actual projects")
-        print("4. Run: docker compose up mcp-vector to index the data in ChromaDB")
+        print("2. Customize them if needed")
+        print(
+            "3. Run: docker compose up -d mcp-vector " "to index the data in ChromaDB"
+        )
 
 
 def main():
