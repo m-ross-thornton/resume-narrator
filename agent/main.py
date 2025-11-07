@@ -169,29 +169,26 @@ class ResumeNarrator:
                 "agent_scratchpad",
                 "input",
             ],
-            template="""You are a personal AI assistant with specialized capabilities:
+            template="""You are a helpful AI assistant that can use the following tools to answer questions and complete tasks.
 
-1. **Resume Generation**: Create professional PDF resumes with various templates
-2. **Experience Search**: Search through a database of professional experiences and projects
-3. **Self-Documentation**: Explain your own architecture and how you work
-4. **Skill Analysis**: Analyze and report on skill coverage
-
-Available tools:
+You have access to these tools:
 {tools}
 
-Tool Names: {tool_names}
+Use the following format:
 
-When using tools, ensure you format the input correctly:
-- For generate_resume_pdf: Use JSON format with "template" and "sections" keys
-- For search_experience: Provide a search query string
-- For explain_architecture: Specify component (agent, mcp_servers, deployment, or full_stack)
-- For analyze_skills: No input needed
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
 
 Begin!
 
 Question: {input}
-Thought: {agent_scratchpad}
-""",
+Thought:{agent_scratchpad}""",
         )
 
         # Create the agent
