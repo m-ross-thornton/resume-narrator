@@ -1,0 +1,54 @@
+{
+  "skills": [
+    {
+      "name": "Generative AI",
+      "proficiency": "Expert",
+      "category": "AI/ML"
+    },
+    {
+      "name": "Python",
+      "proficiency": "Expert",
+      "category": "Languages"
+    },
+    {
+      "name": "Data Science",
+      "proficiency": "Expert",
+      "category": "Data"
+    },
+    {
+      "name": "Azure OpenAI",
+      "proficiency": "Advanced",
+      "category": "Cloud/AI"
+    },
+    {
+      "name": "LangChain",
+      "proficiency": "Advanced",
+      "category": "Frameworks"
+    },
+    {
+      "name": "Palantir",
+      "proficiency": "Advanced",
+      "category": "Tools"
+    },
+    {
+      "name": "Microsoft Power Platform",
+      "proficiency": "Advanced",
+      "category": "Enterprise"
+    },
+    {
+      "name": "SharePoint",
+      "proficiency": "Advanced",
+      "category": "Enterprise"
+    },
+    {
+      "name": "Data Pipelines",
+      "proficiency": "Advanced",
+      "category": "Data"
+    },
+    {
+      "name": "SQL",
+      "proficiency": "Advanced",
+      "category": "Databases"
+    }
+  ]
+}

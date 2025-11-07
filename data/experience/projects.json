@@ -1,10 +1,14 @@
-// data/experience/projects.json
 {
   "projects": [
     {
       "name": "E-Commerce Platform Modernization",
       "description": "Led migration of legacy monolith to microservices",
-      "technologies": ["Python", "FastAPI", "Kubernetes", "PostgreSQL"],
+      "technologies": [
+        "Python",
+        "FastAPI",
+        "Kubernetes",
+        "PostgreSQL"
+      ],
       "role": "Lead Developer",
       "duration": "6 months",
       "achievements": [

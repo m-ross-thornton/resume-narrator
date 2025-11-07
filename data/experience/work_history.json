@@ -1,0 +1,24 @@
+{
+  "work_history": [
+    {
+      "company": "Department of Defense (DoD)",
+      "title": "Senior AI/ML Engineer and Data Scientist",
+      "duration": "12+ years",
+      "description": "Senior AI/ML Engineer and Data Scientist with 12+ years of experience delivering mission-critical solutions within the Department of Defense (DoD) sector. Proven expertise in architecting, engineering, and deploying Generative AI solutions (RAG, Azure OpenAI, LangChain) fully integrated with enterprise platforms like Microsoft Power Platform and SharePoint. Proficient across the full data science lifecycle, from complex data analysis (Palantir, Python) to building robust data pipelines and transforming challenging datasets into actionable intelligence that drives strategic outcomes.",
+      "achievements": [
+        "Architected and deployed Generative AI solutions",
+        "Integrated RAG, Azure OpenAI, and LangChain with enterprise platforms",
+        "Delivered mission-critical solutions within DoD sector"
+      ],
+      "skills": [
+        "AI/ML",
+        "Data Science",
+        "Generative AI",
+        "Azure OpenAI",
+        "LangChain",
+        "Palantir",
+        "Python"
+      ]
+    }
+  ]
+}
