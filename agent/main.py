@@ -1,9 +1,8 @@
 # agent/main.py
+import httpx
 import json
 from typing import Dict, Any, List
 import os
-import sys
-from pathlib import Path
 
 
 def _import_langchain():
@@ -24,27 +23,34 @@ def _import_langchain():
     )
 
 
-def _import_mcp_servers():
-    """Import MCP server modules directly"""
-    # Add mcp-servers directory to path
-    mcp_servers_dir = Path(__file__).parent.parent / "mcp-servers"
-    if str(mcp_servers_dir) not in sys.path:
-        sys.path.insert(0, str(mcp_servers_dir))
+class FastMCPClient:
+    """Client to interact with FastMCP servers"""
 
-    try:
-        # Import server modules
-        import resume_pdf_server
-        import vector_db_server
-        import code_explorer_server
+    def __init__(self, server_urls: Dict[str, str]):
+        self.servers = server_urls
+        self.client = httpx.AsyncClient(timeout=30.0)
 
-        return {
-            "resume": resume_pdf_server,
-            "vector": vector_db_server,
-            "code": code_explorer_server,
-        }
-    except ImportError as e:
-        print(f"Warning: Could not import MCP servers: {e}")
-        return {}
+    async def call_tool(self, server: str, tool: str, params: Dict) -> Dict:
+        """Call a tool on an MCP server"""
+        url = f"{self.servers[server]}/tool/{tool}"
+
+        try:
+            response = await self.client.post(url, json=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"error": f"Failed to call tool: {str(e)}"}
+
+    async def list_tools(self, server: str) -> List[Dict]:
+        """List available tools from a server"""
+        url = f"{self.servers[server]}/tools"
+
+        try:
+            response = await self.client.get(url)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return []
 
 
 class ResumeNarrator:
@@ -66,8 +72,14 @@ class ResumeNarrator:
 
         self.memory = ConversationBufferMemory()
 
-        # Import MCP servers directly
-        self.mcp_servers = _import_mcp_servers()
+        # Initialize MCP client
+        self.mcp_client = FastMCPClient(
+            {
+                "resume": os.getenv("MCP_RESUME_URL", "http://localhost:9001"),
+                "vector": os.getenv("MCP_VECTOR_URL", "http://localhost:9002"),
+                "code": os.getenv("MCP_CODE_URL", "http://localhost:9003"),
+            }
+        )
 
         self.tools = self._create_tools()
 
@@ -77,91 +89,67 @@ class ResumeNarrator:
         tools = []
 
         # Resume PDF Generation Tool
-        def generate_resume_pdf(input_str):
-            try:
-                if self.mcp_servers and "resume" in self.mcp_servers:
-                    resume_module = self.mcp_servers["resume"]
-                    params = (
-                        json.loads(input_str)
-                        if isinstance(input_str, str)
-                        else input_str
-                    )
-                    # Call the generate_resume function from the server
-                    result = resume_module.generate_resume(params)
-                    return str(result)
-                return "Resume server not available"
-            except Exception as e:
-                return f"Error generating resume: {str(e)}"
-
         tools.append(
             Tool(
                 name="generate_resume_pdf",
                 description="Generate a professional PDF resume. Input should be a JSON string with template and sections.",
-                func=generate_resume_pdf,
+                func=lambda x: self._sync_wrapper(
+                    self.mcp_client.call_tool(
+                        "resume", "generate_resume_pdf", json.loads(x)
+                    )
+                ),
             )
         )
 
         # Vector Search Tool
-        def search_experience(query):
-            try:
-                if self.mcp_servers and "vector" in self.mcp_servers:
-                    vector_module = self.mcp_servers["vector"]
-                    # Call the search function from the server
-                    result = vector_module.search_vectors(query)
-                    return str(result)
-                return "Vector search server not available"
-            except Exception as e:
-                return f"Error searching experience: {str(e)}"
-
         tools.append(
             Tool(
                 name="search_experience",
                 description="Search through professional experience and projects. Input should be a search query string.",
-                func=search_experience,
+                func=lambda x: self._sync_wrapper(
+                    self.mcp_client.call_tool(
+                        "vector", "search_experience", {"query": x}
+                    )
+                ),
             )
         )
 
         # Architecture Explanation Tool
-        def explain_architecture(component):
-            try:
-                if self.mcp_servers and "code" in self.mcp_servers:
-                    code_module = self.mcp_servers["code"]
-                    # Call the explain function from the server
-                    result = code_module.explain_component(component)
-                    return str(result)
-                return "Code explorer server not available"
-            except Exception as e:
-                return f"Error explaining architecture: {str(e)}"
-
         tools.append(
             Tool(
                 name="explain_architecture",
                 description="Explain the architecture of how the chatbot works. Input should be component name (agent, mcp_servers, deployment, or full_stack).",
-                func=explain_architecture,
+                func=lambda x: self._sync_wrapper(
+                    self.mcp_client.call_tool(
+                        "code", "explain_architecture", {"component": x}
+                    )
+                ),
             )
         )
 
         # Skill Analysis Tool
-        def analyze_skills(input_str):
-            try:
-                if self.mcp_servers and "vector" in self.mcp_servers:
-                    vector_module = self.mcp_servers["vector"]
-                    # Call the analyze function from the server
-                    result = vector_module.analyze_skills()
-                    return str(result)
-                return "Vector search server not available"
-            except Exception as e:
-                return f"Error analyzing skills: {str(e)}"
-
         tools.append(
             Tool(
                 name="analyze_skills",
                 description="Analyze skill coverage across experiences. No input needed.",
-                func=analyze_skills,
+                func=lambda x: self._sync_wrapper(
+                    self.mcp_client.call_tool("vector", "analyze_skill_coverage", {})
+                ),
             )
         )
 
         return tools
+
+    def _sync_wrapper(self, coro):
+        """Wrapper to run async functions in sync context"""
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
     def create_agent(self):
         """Create the LangChain agent"""
