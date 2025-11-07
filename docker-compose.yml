@@ -73,6 +73,7 @@ services:
       - "8080:8080"
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3.1:8b-instruct-q4_K_M
       - CHROMA_HOST=http://chromadb:8000
       - MCP_RESUME_URL=http://mcp-servers:9001
       - MCP_VECTOR_URL=http://mcp-servers:9002

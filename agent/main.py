@@ -66,7 +66,7 @@ class ResumeNarrator:
         ) = _import_langchain()
 
         self.llm = Ollama(
-            model="llama3.2:latest",
+            model=os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M"),
             base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
         )
 
