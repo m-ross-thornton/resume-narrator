@@ -572,7 +572,7 @@ async def explain_architecture_endpoint(request: Request):
     try:
         data = await request.json()
         analysis_request = CodeAnalysisRequest(**data)
-        result = await analyze_architecture(analysis_request)
+        result = await explain_architecture(analysis_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

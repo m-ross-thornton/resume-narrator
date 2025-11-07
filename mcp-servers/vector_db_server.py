@@ -380,7 +380,7 @@ async def index_documents_endpoint(request: Request):
     try:
         data = await request.json()
         index_request = DocumentIndexRequest(**data)
-        result = await index_documents(index_request)
+        result = await index_experience_data(index_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
