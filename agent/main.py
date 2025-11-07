@@ -185,12 +185,6 @@ Observation: the result of the action
 Thought: I now know the final answer
 Final Answer: the final answer to the original input question
 
-IMPORTANT:
-- Always follow the format strictly
-- Action must be one of the tool names listed
-- Always use "Final Answer:" when you have completed the task
-- Do not output anything else
-
 Begin!
 
 Question: {input}
@@ -200,22 +194,9 @@ Thought:{agent_scratchpad}""",
         # Create the agent
         agent = create_react_agent(self.llm, self.tools, prompt)
 
-        # Create the agent executor with custom error handling
-        def handle_parsing_errors(error):
-            """Custom error handler for parsing errors"""
-            error_msg = str(error)
-            if "Final Answer:" in error_msg or "final answer" in error_msg.lower():
-                # If the model tried to give a final answer but format was wrong,
-                # extract it anyway
-                return f"Final Answer: {error_msg}"
-            return f"I encountered an issue processing that request. Error: {error_msg[:100]}"
-
+        # Create the agent executor
         agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=agent,
-            tools=self.tools,
-            verbose=True,
-            max_iterations=10,
-            handle_parsing_errors=handle_parsing_errors,
+            agent=agent, tools=self.tools, verbose=True, max_iterations=10
         )
 
         return agent_executor
