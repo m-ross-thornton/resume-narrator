@@ -15,6 +15,9 @@ services:
               capabilities: [gpu]
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=/root/.ollama/models
+    entrypoint: /bin/sh -c "ollama serve & sleep 5 && ollama pull llama3.1:8b-instruct-q4_K_M && wait"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
