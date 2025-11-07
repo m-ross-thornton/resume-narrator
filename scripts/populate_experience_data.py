@@ -247,101 +247,6 @@ class ExperienceDataPopulator:
         )
         return ""
 
-    def create_work_history_fallback(self, profile: Dict) -> List[Dict[str, Any]]:
-        """Fallback work history if Ollama unavailable"""
-        return [
-            {
-                "company": "Department of Defense (DoD)",
-                "title": "Senior AI/ML Engineer and Data Scientist",
-                "duration": "12+ years",
-                "description": profile.get(
-                    "Summary",
-                    "Senior AI/ML Engineer and Data Scientist with extensive experience",
-                ),
-                "achievements": [
-                    "Architected and deployed Generative AI solutions",
-                    "Integrated RAG, Azure OpenAI, and LangChain with enterprise "
-                    "platforms",
-                    "Delivered mission-critical solutions within DoD sector",
-                ],
-                "skills": [
-                    "AI/ML",
-                    "Data Science",
-                    "Generative AI",
-                    "Azure OpenAI",
-                    "LangChain",
-                    "Palantir",
-                    "Python",
-                ],
-            }
-        ]
-
-    def create_skills_fallback(self, profile: Dict) -> List[Dict[str, Any]]:
-        """Fallback skills if Ollama unavailable"""
-        return [
-            {
-                "name": "Generative AI",
-                "proficiency": "Expert",
-                "category": "AI/ML",
-            },
-            {"name": "Python", "proficiency": "Expert", "category": "Languages"},
-            {"name": "Data Science", "proficiency": "Expert", "category": "Data"},
-            {
-                "name": "Azure OpenAI",
-                "proficiency": "Advanced",
-                "category": "Cloud/AI",
-            },
-            {
-                "name": "LangChain",
-                "proficiency": "Advanced",
-                "category": "Frameworks",
-            },
-            {"name": "Palantir", "proficiency": "Advanced", "category": "Tools"},
-            {
-                "name": "Microsoft Power Platform",
-                "proficiency": "Advanced",
-                "category": "Enterprise",
-            },
-            {
-                "name": "SharePoint",
-                "proficiency": "Advanced",
-                "category": "Enterprise",
-            },
-            {
-                "name": "Data Pipelines",
-                "proficiency": "Advanced",
-                "category": "Data",
-            },
-            {"name": "SQL", "proficiency": "Advanced", "category": "Databases"},
-        ]
-
-    def create_projects_fallback(self) -> List[Dict[str, Any]]:
-        """Fallback projects if Ollama unavailable"""
-        projects_file = self.experience_dir / "projects.json"
-
-        if projects_file.exists():
-            try:
-                with open(projects_file, "r") as f:
-                    data = json.load(f)
-                    return data.get("projects", [])
-            except Exception:
-                pass
-
-        return [
-            {
-                "name": "E-Commerce Platform Modernization",
-                "description": "Led migration of legacy monolith to microservices",
-                "technologies": ["Python", "FastAPI", "Kubernetes", "PostgreSQL"],
-                "role": "Lead Developer",
-                "duration": "6 months",
-                "achievements": [
-                    "Reduced latency by 40%",
-                    "Improved deployment frequency from monthly to daily",
-                    "Implemented CI/CD pipeline",
-                ],
-            }
-        ]
-
     def save_json(self, filename: str, data: Dict[str, Any]) -> None:
         """Save data to JSON file"""
         output_file = self.experience_dir / filename
@@ -355,6 +260,13 @@ class ExperienceDataPopulator:
         """Run the full population process"""
         print("Populating experience data...\n")
 
+        # Verify Ollama is available
+        if not self.has_ollama:
+            raise RuntimeError(
+                "Ollama is required to populate experience data. "
+                "Please ensure Ollama is running: docker compose up -d ollama"
+            )
+
         # Load profile from CSV
         print("1. Reading profile from CSV...")
         profile = self.load_csv_profile()
@@ -366,46 +278,46 @@ class ExperienceDataPopulator:
         # Extract PDF
         print("\n2. Extracting PDF resume...")
         pdf_text = self.extract_pdf_text()
-        if pdf_text:
-            print(f"   ✓ Extracted {len(pdf_text)} characters from PDF")
-        else:
-            print("   ⚠ Could not extract PDF text")
+        if not pdf_text:
+            raise RuntimeError(
+                "Could not extract PDF text from resume. "
+                "Please ensure a PDF file exists in data/raw/ and "
+                "pdfplumber or PyPDF2 are installed: pip install pdfplumber PyPDF2"
+            )
+        print(f"   ✓ Extracted {len(pdf_text)} characters from PDF")
 
         # Create work history
         print("\n3. Creating work history...")
-        if self.has_ollama and pdf_text:
-            work_history = self.parser.parse_work_history(pdf_text)
-            if not work_history:
-                print("   ⚠ Ollama returned empty, using fallback")
-                work_history = self.create_work_history_fallback(profile)
-        else:
-            work_history = self.create_work_history_fallback(profile)
-
+        work_history = self.parser.parse_work_history(pdf_text)
+        if not work_history:
+            raise RuntimeError(
+                "Ollama failed to parse work history from resume. "
+                "This typically means Ollama encountered a memory issue or parsing error. "
+                "Please check Ollama logs: docker compose logs ollama"
+            )
         self.save_json("work_history.json", {"work_history": work_history})
 
         # Create skills
         print("\n4. Creating skills list...")
-        if self.has_ollama and pdf_text:
-            profile_text = f"{profile.get('Summary', '')} {profile.get('Headline', '')}"
-            skills = self.parser.parse_skills(pdf_text, profile_text)
-            if not skills:
-                print("   ⚠ Ollama returned empty, using fallback")
-                skills = self.create_skills_fallback(profile)
-        else:
-            skills = self.create_skills_fallback(profile)
-
+        profile_text = f"{profile.get('Summary', '')} {profile.get('Headline', '')}"
+        skills = self.parser.parse_skills(pdf_text, profile_text)
+        if not skills:
+            raise RuntimeError(
+                "Ollama failed to parse skills from resume. "
+                "This typically means Ollama encountered a memory issue or parsing error. "
+                "Please check Ollama logs: docker compose logs ollama"
+            )
         self.save_json("skills.json", {"skills": skills})
 
         # Create projects
         print("\n5. Creating projects...")
-        if self.has_ollama and pdf_text:
-            projects = self.parser.parse_projects(pdf_text)
-            if not projects:
-                print("   ⚠ Ollama returned empty, using fallback")
-                projects = self.create_projects_fallback()
-        else:
-            projects = self.create_projects_fallback()
-
+        projects = self.parser.parse_projects(pdf_text)
+        if not projects:
+            raise RuntimeError(
+                "Ollama failed to parse projects from resume. "
+                "This typically means Ollama encountered a memory issue or parsing error. "
+                "Please check Ollama logs: docker compose logs ollama"
+            )
         self.save_json("projects.json", {"projects": projects})
 
         print("\n✅ Experience data population complete!")
