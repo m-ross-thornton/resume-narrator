@@ -5,14 +5,14 @@ services:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # runtime: nvidia  # Uncomment if GPU is available
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -39,27 +39,74 @@ services:
       timeout: 10s
       retries: 3
 
-  mcp-servers:
+  mcp-resume:
     image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
     build:
       context: .
       dockerfile: Dockerfile.mcp
     ports:
-      - "9001:9001"  # Resume PDF server
-      - "9002:9002"  # Vector DB server
-      - "9003:9003"  # Code Explorer server
+      - "9001:9001"
     environment:
       - CHROMA_HOST=http://chromadb:8000
       - OLLAMA_HOST=http://ollama:11434
     volumes:
       - ./data:/app/data
-      - ./mcp_servers:/app/mcp_servers
-      - .:/app/codebase:ro  # Read-only access to codebase
+      - ./mcp-servers:/app/mcp-servers
+      - .:/app/codebase:ro
     depends_on:
       - chromadb
       - ollama
+    command: python /app/mcp-servers/resume_http_server.py
     healthcheck:
-      test: ["CMD", "python", "-c", "import fastmcp; print('healthy')"]
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp-vector:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "9002:9002"
+    environment:
+      - CHROMA_HOST=http://chromadb:8000
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./data:/app/data
+      - ./mcp-servers:/app/mcp-servers
+      - .:/app/codebase:ro
+    depends_on:
+      - chromadb
+      - ollama
+    command: python /app/mcp-servers/vector_http_server.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp-code:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    ports:
+      - "9003:9003"
+    environment:
+      - CHROMA_HOST=http://chromadb:8000
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./data:/app/data
+      - ./mcp-servers:/app/mcp-servers
+      - .:/app/codebase:ro
+    depends_on:
+      - chromadb
+      - ollama
+    command: python /app/mcp-servers/code_http_server.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -75,14 +122,16 @@ services:
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=llama3.1:8b-instruct-q4_K_M
       - CHROMA_HOST=http://chromadb:8000
-      - MCP_RESUME_URL=http://mcp-servers:9001
-      - MCP_VECTOR_URL=http://mcp-servers:9002
-      - MCP_CODE_URL=http://mcp-servers:9003
+      - MCP_RESUME_URL=http://mcp-resume:9001
+      - MCP_VECTOR_URL=http://mcp-vector:9002
+      - MCP_CODE_URL=http://mcp-code:9003
     volumes:
       - ./data:/app/data
       - ./agent:/app/agent
     depends_on:
-      - mcp-servers
+      - mcp-resume
+      - mcp-vector
+      - mcp-code
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

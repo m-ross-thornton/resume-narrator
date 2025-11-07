@@ -553,3 +553,26 @@ async def get_deployment_instructions() -> Dict[str, Any]:
             ]
         },
     }
+
+
+# Add custom REST routes for HTTP API
+from starlette.responses import JSONResponse
+from starlette.requests import Request
+
+
+@mcp.custom_route("/health", ["GET"])
+async def health_check(request: Request):
+    """Health check endpoint"""
+    return JSONResponse({"status": "ok", "service": "code-explorer-server"})
+
+
+@mcp.custom_route("/tool/explain_architecture", ["POST"])
+async def explain_architecture_endpoint(request: Request):
+    """REST endpoint for explaining architecture"""
+    try:
+        data = await request.json()
+        analysis_request = CodeAnalysisRequest(**data)
+        result = await analyze_architecture(analysis_request)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

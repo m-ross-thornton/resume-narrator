@@ -286,3 +286,53 @@ async def list_resume_templates() -> Dict[str, Any]:
     }
 
     return {"templates": templates, "default": "professional"}
+
+
+# Add custom REST routes for HTTP API
+from starlette.responses import JSONResponse
+from starlette.requests import Request
+
+
+@mcp.custom_route("/health", ["GET"])
+async def health_check(request: Request):
+    """Health check endpoint"""
+    return JSONResponse({"status": "ok", "service": "resume-pdf-server"})
+
+
+@mcp.custom_route("/tool/generate_resume_pdf", ["POST"])
+async def generate_resume_pdf_endpoint(request: Request):
+    """REST endpoint for generating resume PDF"""
+    try:
+        data = await request.json()
+        resume_request = ResumeRequest(**data)
+        result = await generate_resume_pdf(resume_request)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
+
+@mcp.custom_route("/tool/search_experience", ["POST"])
+async def search_experience_endpoint(request: Request):
+    """REST endpoint placeholder for search_experience"""
+    return JSONResponse(
+        {"status": "success", "message": "Search experience tool would be called here"}
+    )
+
+
+@mcp.custom_route("/tool/explain_architecture", ["POST"])
+async def explain_architecture_endpoint(request: Request):
+    """REST endpoint placeholder for explain_architecture"""
+    return JSONResponse(
+        {
+            "status": "success",
+            "message": "Explain architecture tool would be called here",
+        }
+    )
+
+
+@mcp.custom_route("/tool/analyze_skills", ["POST"])
+async def analyze_skills_endpoint(request: Request):
+    """REST endpoint placeholder for analyze_skills"""
+    return JSONResponse(
+        {"status": "success", "message": "Analyze skills tool would be called here"}
+    )

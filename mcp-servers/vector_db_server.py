@@ -349,3 +349,48 @@ async def analyze_skill_coverage() -> Dict[str, Any]:
 
     except Exception as e:
         return {"status": "error", "message": f"Failed to analyze skills: {str(e)}"}
+
+
+# Add custom REST routes for HTTP API
+from starlette.responses import JSONResponse
+from starlette.requests import Request
+
+
+@mcp.custom_route("/health", ["GET"])
+async def health_check(request: Request):
+    """Health check endpoint"""
+    return JSONResponse({"status": "ok", "service": "vector-db-server"})
+
+
+@mcp.custom_route("/tool/search_experience", ["POST"])
+async def search_experience_endpoint(request: Request):
+    """REST endpoint for searching experience"""
+    try:
+        data = await request.json()
+        search_request = VectorSearchRequest(**data)
+        result = await search_experience(search_request)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
+
+@mcp.custom_route("/tool/index_documents", ["POST"])
+async def index_documents_endpoint(request: Request):
+    """REST endpoint for indexing documents"""
+    try:
+        data = await request.json()
+        index_request = DocumentIndexRequest(**data)
+        result = await index_documents(index_request)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
+
+@mcp.custom_route("/tool/analyze_skills", ["POST"])
+async def analyze_skills_endpoint(request: Request):
+    """REST endpoint for analyzing skills"""
+    try:
+        result = await analyze_skill_coverage()
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

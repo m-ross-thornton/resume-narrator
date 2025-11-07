@@ -15,7 +15,7 @@ COPY mcp-servers/requirements.txt .
 
 # Install Python packages with optimizations
 RUN pip install --no-cache-dir --no-deps -r requirements.txt \
-    && pip install --no-cache-dir sentence-transformers fastmcp
+    && pip install --no-cache-dir sentence-transformers fastmcp uvicorn
 
 # Copy MCP server code
 COPY mcp-servers/ ./mcp-servers/

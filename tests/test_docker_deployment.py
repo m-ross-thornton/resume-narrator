@@ -40,7 +40,14 @@ class TestDockerCompose:
         with open(compose_file, "r") as f:
             config = yaml.safe_load(f)
 
-        required_services = ["ollama", "chromadb", "mcp-servers", "agent"]
+        required_services = [
+            "ollama",
+            "chromadb",
+            "mcp-resume",
+            "mcp-vector",
+            "mcp-code",
+            "agent",
+        ]
 
         for service in required_services:
             assert (
@@ -99,7 +106,7 @@ class TestDockerCompose:
 
     @pytest.mark.docker
     def test_mcp_servers_service_configuration(self):
-        """Test MCP servers service is properly configured"""
+        """Test MCP servers services are properly configured"""
         import yaml
 
         compose_file = Path(__file__).parent.parent / "docker-compose.yml"
@@ -107,13 +114,18 @@ class TestDockerCompose:
         with open(compose_file, "r") as f:
             config = yaml.safe_load(f)
 
-        mcp_service = config["services"]["mcp-servers"]
+        # Check that each MCP service is properly configured
+        mcp_services = {
+            "mcp-resume": "9001:9001",
+            "mcp-vector": "9002:9002",
+            "mcp-code": "9003:9003",
+        }
 
-        assert "build" in mcp_service
-        assert "ports" in mcp_service
-        assert "9001:9001" in mcp_service["ports"]
-        assert "9002:9002" in mcp_service["ports"]
-        assert "9003:9003" in mcp_service["ports"]
+        for service_name, expected_port in mcp_services.items():
+            mcp_service = config["services"][service_name]
+            assert "build" in mcp_service
+            assert "ports" in mcp_service
+            assert expected_port in mcp_service["ports"]
 
 
 class TestDockerfiles:
