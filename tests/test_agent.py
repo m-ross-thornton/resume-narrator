@@ -62,23 +62,19 @@ class TestResumeNarrator:
     @pytest.mark.unit
     def test_narrator_initialization(self):
         """Test narrator initializes with required components"""
-        with patch.object(ResumeNarrator, "_create_tools", return_value=[]):
-            narrator = ResumeNarrator()
+        narrator = ResumeNarrator()
 
-            assert narrator.llm is not None
-            assert narrator.memory is not None
-            assert narrator.mcp_client is not None
-            assert narrator.tools is not None
+        assert narrator.llm is not None
+        assert narrator.mcp_client is not None
+        assert narrator.tools is not None
 
     @pytest.mark.unit
     def test_narrator_creates_tools(self):
         """Test narrator creates all required tools"""
-        with patch.object(
-            ResumeNarrator, "_create_tools", return_value=[]
-        ) as mock_tools:
-            narrator = ResumeNarrator()
+        narrator = ResumeNarrator()
+        tools = narrator._create_tools()
 
-            mock_tools.assert_called_once()
+        assert len(tools) == 4
 
     @pytest.mark.unit
     def test_tool_names(self):
@@ -95,11 +91,10 @@ class TestResumeNarrator:
     @pytest.mark.unit
     def test_create_agent_returns_executor(self):
         """Test create_agent returns an executor"""
-        with patch.object(ResumeNarrator, "_create_tools", return_value=[]):
-            narrator = ResumeNarrator()
-            executor = narrator.create_agent()
+        narrator = ResumeNarrator()
+        executor = narrator.create_agent()
 
-            assert executor is not None
+        assert executor is not None
 
     @pytest.mark.unit
     def test_sync_wrapper_runs_async_code(self):
@@ -140,31 +135,19 @@ class TestResumeNarrator:
         """Test narrator with custom subject name"""
         os.environ["SUBJECT_NAME"] = "Alice"
 
-        with patch.object(ResumeNarrator, "_create_tools", return_value=[]):
-            narrator = ResumeNarrator()
+        narrator = ResumeNarrator()
 
-            # Custom subject should be accessible through environment
-            assert os.getenv("SUBJECT_NAME") == "Alice"
-
-    @pytest.mark.unit
-    def test_memory_initialization(self):
-        """Test conversation memory is initialized"""
-        with patch.object(ResumeNarrator, "_create_tools", return_value=[]):
-            narrator = ResumeNarrator()
-
-            assert narrator.memory is not None
-            assert hasattr(narrator.memory, "memory_key")
-            assert narrator.memory.memory_key == "history"
+        # Custom subject should be accessible through environment
+        assert os.getenv("SUBJECT_NAME") == "Alice"
 
     @pytest.mark.unit
     def test_mcp_client_servers_configured(self):
         """Test MCP client has all servers configured"""
-        with patch.object(ResumeNarrator, "_create_tools", return_value=[]):
-            narrator = ResumeNarrator()
+        narrator = ResumeNarrator()
 
-            assert "resume" in narrator.mcp_client.servers
-            assert "vector" in narrator.mcp_client.servers
-            assert "code" in narrator.mcp_client.servers
+        assert "resume" in narrator.mcp_client.servers
+        assert "vector" in narrator.mcp_client.servers
+        assert "code" in narrator.mcp_client.servers
 
 
 class TestToolCreation:

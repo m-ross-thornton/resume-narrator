@@ -12,13 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from agent.main import ResumeNarrator
 
 
-def _import_langchain():
-    """Lazy import to avoid Pydantic v2 compatibility issues with LangChain v0.1"""
-    from langchain.memory import ConversationBufferMemory
-
-    return ConversationBufferMemory
-
-
 class TestAgentMCPIntegration:
     """Test integration between agent and MCP servers"""
 
@@ -136,17 +129,6 @@ class TestServiceHealthChecks:
 
         assert narrator.llm.model == expected_model
 
-    @pytest.mark.integration
-    def test_memory_configured(self):
-        """Test conversation memory is properly configured"""
-        ConversationBufferMemory = _import_langchain()
-        narrator = ResumeNarrator()
-        memory = narrator.memory
-
-        assert memory.memory_key == "history"
-        # ConversationBufferMemory returns messages by default
-        assert isinstance(memory, ConversationBufferMemory)
-
 
 class TestToolIntegration:
     """Test tool integration and functionality"""
@@ -232,11 +214,11 @@ class TestAgentPromptTemplate:
 
     @pytest.mark.unit
     def test_prompt_has_required_fields(self):
-        """Test agent prompt template includes required fields"""
+        """Test agent can be created with proper structure"""
         narrator = ResumeNarrator()
         executor = narrator.create_agent()
 
-        # The prompt should be embedded in the agent
+        # The agent should be properly created
         assert executor is not None
 
     @pytest.mark.unit
