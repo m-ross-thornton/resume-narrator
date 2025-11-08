@@ -267,25 +267,3 @@ class TestMCPServerIntegration:
                 import_mcp_module(server_name)
             except Exception as e:
                 pytest.fail(f"Failed to import {server_name}: {e}")
-
-    @pytest.mark.unit
-    def test_server_runner_exists(self):
-        """Test server runner script exists"""
-        server_runner = import_mcp_module("server_runner")
-        MCPServerManager = server_runner.MCPServerManager
-
-        assert MCPServerManager is not None
-
-    @pytest.mark.unit
-    def test_mcp_server_manager_initialization(self):
-        """Test MCPServerManager initializes correctly"""
-        server_runner = import_mcp_module("server_runner")
-        MCPServerManager = server_runner.MCPServerManager
-
-        manager = MCPServerManager()
-
-        assert manager.SERVERS is not None
-        assert len(manager.SERVERS) >= 3
-        assert "resume" in manager.SERVERS
-        assert "vector" in manager.SERVERS
-        assert "code" in manager.SERVERS

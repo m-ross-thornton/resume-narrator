@@ -10,7 +10,13 @@ from unittest.mock import patch, AsyncMock, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent.main import ResumeNarrator
-from langchain.memory import ConversationBufferMemory
+
+
+def _import_langchain():
+    """Lazy import to avoid Pydantic v2 compatibility issues with LangChain v0.1"""
+    from langchain.memory import ConversationBufferMemory
+
+    return ConversationBufferMemory
 
 
 class TestAgentMCPIntegration:
@@ -133,6 +139,7 @@ class TestServiceHealthChecks:
     @pytest.mark.integration
     def test_memory_configured(self):
         """Test conversation memory is properly configured"""
+        ConversationBufferMemory = _import_langchain()
         narrator = ResumeNarrator()
         memory = narrator.memory
 
