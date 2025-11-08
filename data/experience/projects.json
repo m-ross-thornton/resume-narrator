@@ -1,7 +1,7 @@
 {
   "projects": [
     {
-      "name": "E-Commerce Platform Modernization",
+      "name": "E-Commerce Platform Modernization example",
       "description": "Led migration of legacy monolith to microservices",
       "technologies": [
         "Python",
