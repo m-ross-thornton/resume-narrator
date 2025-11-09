@@ -31,4 +31,6 @@ async def main(message: cl.Message):
     # Stream response
     response = await cl.make_async(agent.invoke)({"input": message.content})
 
-    await msg.update(content=response["output"])
+    # Update message content and persist
+    msg.content = response["output"]
+    await msg.update()
