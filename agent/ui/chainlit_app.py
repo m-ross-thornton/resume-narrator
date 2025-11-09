@@ -1,15 +1,14 @@
 # agent/ui/chainlit_app.py
 import chainlit as cl
-from agent.main import create_agent
-import os
-
-SUBJECT_NAME = os.getenv("SUBJECT_NAME", "Ross")
+from agent.main import create_lc_agent
+from agent.config import SUBJECT_NAME
 
 
 @cl.on_chat_start
 async def start():
-    executor = create_agent()
-    cl.user_session.set("agent", executor)
+    agent = create_lc_agent()
+
+    cl.user_session.set("agent", agent)
 
     await cl.Message(
         content="👋 Hello! I'm a resume narrator AI assistant. I can help you with:\n"

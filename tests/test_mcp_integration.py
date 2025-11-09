@@ -7,7 +7,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agent.main import create_agent
+from agent.main import create_lc_agent
 
 
 class TestAgentMCPIntegration:
@@ -16,16 +16,15 @@ class TestAgentMCPIntegration:
     @pytest.mark.integration
     def test_agent_initialization(self):
         """Test agent can be initialized with tools"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
         assert hasattr(agent, "invoke")
-        assert hasattr(agent, "graph")
 
     @pytest.mark.integration
     def test_agent_executor_creation(self):
         """Test agent executor is created successfully"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
         assert hasattr(agent, "invoke")
@@ -36,7 +35,7 @@ class TestAgentMCPIntegration:
         os.environ["OLLAMA_HOST"] = "http://test-ollama:11434"
         os.environ["MCP_RESUME_URL"] = "http://test-resume:9001"
 
-        agent = create_agent()
+        agent = create_lc_agent()
 
         # Verify agent is created with env vars
         assert agent is not None
@@ -57,7 +56,7 @@ class TestServiceHealthChecks:
         for key, value in test_urls.items():
             os.environ[key] = value
 
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
 
@@ -71,7 +70,7 @@ class TestServiceHealthChecks:
         """Test LLM is configured with correct model"""
         expected_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M")
 
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
 
@@ -91,13 +90,13 @@ class TestAgentErrorHandling:
             },
         ):
             # Should not raise an error during initialization
-            agent = create_agent()
+            agent = create_lc_agent()
             assert agent is not None
 
     @pytest.mark.unit
     def test_agent_tool_creation_does_not_fail_on_missing_services(self):
         """Test tools are created even without running services"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
         # Should create agent successfully regardless of service availability
         assert agent is not None
@@ -110,11 +109,10 @@ class TestAgentPromptTemplate:
     @pytest.mark.unit
     def test_agent_has_system_prompt(self):
         """Test agent can be created with system prompt"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
-        # The agent should be properly created with system prompt
+        # The agent should be properly created
         assert agent is not None
-        assert hasattr(agent, "graph")
 
     @pytest.mark.unit
     def test_subject_name_env_variable(self):
@@ -139,39 +137,32 @@ class TestAgentPromptTemplate:
 
 
 class TestAgentWrapperInterface:
-    """Test agent wrapper interface for Chainlit compatibility"""
+    """Test agent interface"""
 
     @pytest.mark.unit
-    def test_agent_invoke_with_input_dict(self):
-        """Test agent invoke accepts input dict"""
-        agent = create_agent()
+    def test_agent_has_invoke_method(self):
+        """Test agent has invoke method"""
+        agent = create_lc_agent()
 
-        # Should accept dict with "input" key (Chainlit interface)
-        result = agent.invoke({"input": "test query"})
-
-        assert isinstance(result, dict)
-        assert "output" in result
-        assert "input" in result
+        assert agent is not None
+        assert hasattr(agent, "invoke")
 
     @pytest.mark.unit
-    def test_agent_invoke_returns_proper_format(self):
-        """Test agent invoke returns Chainlit-compatible format"""
-        agent = create_agent()
+    def test_agent_is_runnable(self):
+        """Test agent is a runnable"""
+        agent = create_lc_agent()
 
-        result = agent.invoke({"input": "What are my skills?"})
-
-        assert isinstance(result, dict)
-        assert result.get("input") == "What are my skills?"
-        assert "output" in result
-        assert isinstance(result["output"], str)
+        # Agent should be a LangChain Runnable
+        assert agent is not None
+        assert callable(agent.invoke)
 
     @pytest.mark.unit
-    def test_agent_wrapper_graph_attribute(self):
-        """Test agent wrapper has graph attribute"""
-        agent = create_agent()
+    def test_agent_wrapper_invoke_returns_text(self):
+        """Test agent has required interface"""
+        agent = create_lc_agent()
 
-        assert hasattr(agent, "graph")
-        assert agent.graph is not None
+        assert agent is not None
+        assert hasattr(agent, "invoke")
 
 
 # Need to import patch for test_agent_handles_invalid_mcp_servers

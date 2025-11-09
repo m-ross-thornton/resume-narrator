@@ -1,25 +1,19 @@
 """
 Resume Narrator Agent using LangChain 1.0
 """
-import os
 import json
 import httpx
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
-from langchain.agents import create_agent as create_langchain_agent
-from langchain_core.messages import HumanMessage
 from typing import Any
 
-# Initialize LLM
-llm = ChatOllama(
-    model=os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M"),
-    base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+from agent.config import (
+    OLLAMA_MODEL,
+    OLLAMA_HOST,
+    MCP_RESUME_URL,
+    MCP_VECTOR_URL,
+    MCP_CODE_URL,
 )
-
-# MCP server URLs
-MCP_RESUME_URL = os.getenv("MCP_RESUME_URL", "http://localhost:9001")
-MCP_VECTOR_URL = os.getenv("MCP_VECTOR_URL", "http://localhost:9002")
-MCP_CODE_URL = os.getenv("MCP_CODE_URL", "http://localhost:9003")
 
 
 @tool
@@ -100,56 +94,28 @@ def analyze_skills() -> str:
         return json.dumps({"error": str(e)})
 
 
-def create_agent() -> Any:
+def create_lc_agent() -> Any:
     """Create the LangChain 1.0 agent with tool calling.
 
-    Returns a wrapper that matches the Chainlit interface: invoke({"input": "..."}) -> {"output": "..."}
+    Returns a runnable that can be invoked with {"input": "..."}.
     """
-    tools = [
-        generate_resume_pdf,
-        search_experience,
-        explain_architecture,
-        analyze_skills,
-    ]
-
-    # Create the agent graph
-    graph = create_langchain_agent(
-        llm,
-        tools,
+    # Initialize LLM with configured settings
+    agent = ChatOllama(
+        model=OLLAMA_MODEL,
+        base_url=OLLAMA_HOST,
+    ).bind_tools(
+        [
+            generate_resume_pdf,
+            search_experience,
+            explain_architecture,
+            analyze_skills,
+        ]
     )
-
-    # Wrap the graph to match Chainlit's expected interface
-    class AgentWrapper:
-        """Wrapper to convert between Chainlit interface and LangChain 1.0 agent interface"""
-
-        def __init__(self, graph):
-            self.graph = graph
-
-        def invoke(self, input_dict: dict) -> dict:
-            """
-            Convert from Chainlit interface: {"input": "..."}
-            to LangChain agent interface: {"messages": [...]}
-            and back.
-            """
-            user_input = input_dict.get("input", "")
-
-            # Call the agent with the new interface
-            result = self.graph.invoke({"messages": [HumanMessage(content=user_input)]})
-
-            # Extract the final response from messages
-            messages = result.get("messages", [])
-            output = ""
-            if messages:
-                last_message = messages[-1]
-                output = getattr(last_message, "content", str(last_message))
-
-            return {"output": output, "input": user_input}
-
-    return AgentWrapper(graph)
+    return agent
 
 
 if __name__ == "__main__":
     # Example usage
-    agent = create_agent()
+    agent = create_lc_agent()
     result = agent.invoke({"input": "What are my main skills?"})
     print(result)

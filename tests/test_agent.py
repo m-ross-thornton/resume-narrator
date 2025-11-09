@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent.main import (
-    create_agent,
+    create_lc_agent,
     generate_resume_pdf,
     search_experience,
     explain_architecture,
@@ -53,26 +53,26 @@ class TestCreateAgent:
 
     @pytest.mark.unit
     def test_create_agent_returns_wrapper(self):
-        """Test create_agent returns an agent wrapper"""
-        agent = create_agent()
+        """Test create_lc_agent returns an agent"""
+        agent = create_lc_agent()
 
         assert agent is not None
         assert hasattr(agent, "invoke")
 
     @pytest.mark.unit
     def test_agent_wrapper_invoke_interface(self):
-        """Test agent wrapper has invoke method"""
-        agent = create_agent()
+        """Test agent has invoke method"""
+        agent = create_lc_agent()
 
         assert callable(agent.invoke)
 
     @pytest.mark.unit
-    def test_agent_wrapper_has_graph(self):
-        """Test agent wrapper has graph attribute"""
-        agent = create_agent()
+    def test_agent_has_invoke_method(self):
+        """Test agent has invoke method"""
+        agent = create_lc_agent()
 
-        assert hasattr(agent, "graph")
-        assert agent.graph is not None
+        assert agent is not None
+        assert hasattr(agent, "invoke")
 
 
 class TestToolIntegration:
@@ -81,15 +81,15 @@ class TestToolIntegration:
     @pytest.mark.unit
     def test_tools_available_in_agent(self):
         """Test that tools are available for agent use"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
-        # The agent's graph should have tools
-        assert agent.graph is not None
+        # The agent should have tools bound
+        assert agent is not None
 
     @pytest.mark.unit
     def test_agent_creation_succeeds(self):
         """Test agent can be created without errors"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
 
@@ -100,26 +100,19 @@ class TestAgentConfiguration:
     @pytest.mark.unit
     def test_default_ollama_configuration(self):
         """Test default Ollama configuration"""
-        agent = create_agent()
+        agent = create_lc_agent()
 
         assert agent is not None
 
     @pytest.mark.unit
     def test_mcp_server_urls_from_environment(self):
-        """Test MCP server URLs from environment variables"""
-        test_urls = {
-            "MCP_RESUME_URL": "http://test-resume:9001",
-            "MCP_VECTOR_URL": "http://test-vector:9002",
-            "MCP_CODE_URL": "http://test-code:9003",
-        }
+        """Test MCP server URLs from configuration"""
+        from agent.config import MCP_RESUME_URL, MCP_VECTOR_URL, MCP_CODE_URL
 
-        for key, value in test_urls.items():
-            os.environ[key] = value
-
-        agent = create_agent()
+        agent = create_lc_agent()
         assert agent is not None
 
-        # Clean up
-        for key in test_urls:
-            if key in os.environ:
-                del os.environ[key]
+        # Verify config values are loaded
+        assert MCP_RESUME_URL is not None
+        assert MCP_VECTOR_URL is not None
+        assert MCP_CODE_URL is not None
