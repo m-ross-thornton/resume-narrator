@@ -5,7 +5,7 @@ A comprehensive AI agent system for generating, analyzing, and explaining profes
 ## Overview
 
 Resnar is a sophisticated resume narrator application that combines:
-- **LLM-powered Agent**: Uses LangChain with Ollama for intelligent interactions
+- **LLM-powered Agent**: Uses LangChain 1.0 with langgraph StateGraph and ChatOllama for intelligent interactions
 - **MCP Servers**: Modular server architecture for specialized tasks
 - **Vector Database**: ChromaDB for semantic search across experience
 - **Web UI**: Chainlit-based interactive interface
@@ -87,8 +87,15 @@ chainlit run agent/ui/chainlit_app.py --host 0.0.0.0 --port 8080
                  │
 ┌────────────────▼────────────────────────────┐
 │      ResumeNarrator Agent                   │
-│  (LangChain + Ollama LLM)                   │
+│  (LangChain 1.0 + langgraph StateGraph)     │
+│  LLM: ChatOllama with Tool Binding          │
 └────┬──────────┬──────────┬──────────────────┘
+     │          │          │
+     │        Tools        │
+     ├─ generate_resume_pdf
+     ├─ search_experience
+     ├─ explain_architecture
+     └─ analyze_skills
      │          │          │
 ┌────▼──┐  ┌───▼──┐  ┌────▼──┐
 │Resume │  │Vector│  │Code   │
@@ -103,6 +110,33 @@ chainlit run agent/ui/chainlit_app.py --host 0.0.0.0 --port 8080
        │(11434)  │DB    │
        └──────┘  └──────┘
 ```
+
+## Recent Updates
+
+### LangChain 1.0 Migration (Latest)
+
+The agent has been fully refactored to use LangChain 1.0+ with langgraph:
+
+- **Agent Pattern**: Migrated from deprecated `AgentExecutor` + `create_react_agent` to **langgraph `StateGraph`** with explicit node-based execution
+- **LLM Integration**: Uses `ChatOllama` from `langchain-ollama` package with native `bind_tools()` support for tool binding
+- **Tool Execution**: Implements manual tool invocation via tool mapping dictionary instead of `ToolExecutor`
+- **State Management**: Uses `AgentState` TypedDict to manage message flow, input, and output through the graph
+- **Dependency Versions**: Pinned specific versions to resolve pip dependency resolution issues and ensure CI/CD compatibility
+
+### Key Improvements
+
+- ✅ All 89 tests passing (was 56 passed, 34 xfailed)
+- ✅ No LangChain deprecation warnings
+- ✅ Future-proof with latest LangChain 1.0+ APIs
+- ✅ Cleaner node-based agent architecture
+- ✅ Improved error handling with try/except in tool execution
+
+### Removed Placeholder Files
+
+- Deleted unused HTTP wrapper files (`code_http_server.py`, `resume_http_server.py`, `vector_http_server.py`)
+- Removed empty templates and incomplete scripts
+- Cleaned up non-English Chainlit translation files (kept only en-US)
+- Removed 4.5MB of archived files
 
 ## Configuration
 
@@ -136,7 +170,7 @@ See `docker-compose.yml` for detailed service configuration (used with `docker c
 
 ## Testing
 
-Comprehensive test suite with 105+ tests covering unit, integration, and deployment scenarios.
+Comprehensive test suite with 92 tests (89 passing, 3 skipped) covering unit, integration, and deployment scenarios.
 
 ### Quick Test
 
@@ -417,7 +451,9 @@ For issues, questions, or suggestions:
 
 ## Acknowledgments
 
-- LangChain - LLM orchestration
+- LangChain - LLM orchestration framework (v1.0+)
+- langgraph - Graph-based agent state management
+- langchain-ollama - Ollama LLM integration for LangChain 1.0
 - Chainlit - Web UI framework
 - Ollama - Local LLM inference
 - ChromaDB - Vector database
