@@ -5,14 +5,14 @@ services:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
-    # runtime: nvidia  # Uncomment if GPU is available
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - ollama_data:/root/.ollama
     environment:
