@@ -5,6 +5,9 @@ import json
 import httpx
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnablePassthrough
 from typing import Any
 
 from agent.config import (
@@ -97,21 +100,50 @@ def analyze_skills() -> str:
 def create_lc_agent() -> Any:
     """Create the LangChain 1.0 agent with tool calling.
 
-    Returns a runnable that can be invoked with {"input": "..."}.
+    Returns a Runnable that accepts {"input": "..."} and returns output.
     """
     # Initialize LLM with configured settings
-    agent = ChatOllama(
+    llm = ChatOllama(
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
-    ).bind_tools(
-        [
-            generate_resume_pdf,
-            search_experience,
-            explain_architecture,
-            analyze_skills,
-        ]
     )
-    return agent
+
+    # Define tools
+    tools = [
+        generate_resume_pdf,
+        search_experience,
+        explain_architecture,
+        analyze_skills,
+    ]
+
+    # Create agent
+    agent = create_agent(llm, tools)
+
+    # Wrapper to convert dict input format to message format
+    class AgentWrapper:
+        def __init__(self, agent):
+            self.agent = agent
+
+        def invoke(self, input_dict: dict) -> dict:
+            """Convert dict input to messages and invoke agent."""
+            user_input = input_dict.get("input", "")
+            # Create message for the agent
+            messages = [HumanMessage(content=user_input)]
+            # Invoke agent and get result
+            result = self.agent.invoke({"messages": messages})
+            # Extract output from result
+            output = ""
+            if isinstance(result, dict) and "messages" in result:
+                messages = result["messages"]
+                if messages:
+                    output = str(messages[-1].content)
+            elif hasattr(result, "content"):
+                output = str(result.content)
+            else:
+                output = str(result)
+            return {"output": output}
+
+    return AgentWrapper(agent)
 
 
 if __name__ == "__main__":
