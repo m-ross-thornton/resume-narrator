@@ -29,11 +29,20 @@ class TestChainlitAppImport:
     @pytest.mark.unit
     def test_subject_name_from_environment(self):
         """Test subject name is read from environment"""
+        import importlib
+        import agent.config
+
+        # Set env var before reloading config module
         os.environ["SUBJECT_NAME"] = "TestUser"
 
-        from agent.ui.chainlit_app import SUBJECT_NAME
+        # Reload config to pick up the new environment variable
+        importlib.reload(agent.config)
 
-        assert SUBJECT_NAME == "TestUser"
+        assert agent.config.SUBJECT_NAME == "TestUser"
+
+        # Clean up by removing the env var and reloading again
+        del os.environ["SUBJECT_NAME"]
+        importlib.reload(agent.config)
 
     @pytest.mark.unit
     def test_subject_name_default(self):
@@ -93,20 +102,22 @@ class TestChainlitIntegration:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_resume_narrator_integration(self):
-        """Test ResumeNarrator is properly integrated"""
-        from agent.main import ResumeNarrator
+        """Test agent is properly created and can be invoked"""
+        from agent.main import create_lc_agent
 
-        narrator = ResumeNarrator()
+        agent = create_lc_agent()
 
-        assert narrator is not None
-        assert narrator.create_agent() is not None
+        assert agent is not None
+        assert hasattr(agent, "invoke")
 
     @pytest.mark.unit
     def test_agent_main_module_imports(self):
-        """Test agent.main module can be imported"""
-        from agent.main import ResumeNarrator
+        """Test agent.main module can be imported with required functions"""
+        from agent.main import create_lc_agent, generate_resume_pdf, search_experience
 
-        assert ResumeNarrator is not None
+        assert create_lc_agent is not None
+        assert generate_resume_pdf is not None
+        assert search_experience is not None
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -183,14 +194,15 @@ class TestChainlitErrorHandling:
     @pytest.mark.unit
     def test_agent_initialization_error_handling(self):
         """Test agent initialization handles errors gracefully"""
-        from agent.main import ResumeNarrator
+        from agent.main import create_lc_agent
 
         # Should not raise even if services are unavailable
         try:
-            narrator = ResumeNarrator()
-            assert narrator is not None
+            agent = create_lc_agent()
+            assert agent is not None
+            assert hasattr(agent, "invoke")
         except Exception as e:
-            pytest.fail(f"ResumeNarrator initialization failed: {e}")
+            pytest.fail(f"Agent creation failed: {e}")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
