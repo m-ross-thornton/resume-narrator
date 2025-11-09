@@ -49,11 +49,11 @@ class FastMCPClient:
 
 class ResumeNarrator:
     def __init__(self):
-        from langchain_ollama import OllamaLLM
+        from langchain_ollama import ChatOllama
         from langchain_core.tools import StructuredTool
         from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
-        self.llm = OllamaLLM(
+        self.llm = ChatOllama(
             model=os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M"),
             base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
         )
