@@ -14,64 +14,39 @@ class TestAgentMCPIntegration:
     """Test integration between agent and MCP servers"""
 
     @pytest.mark.integration
-    def test_agent_initialization(self):
-        """Test agent can be initialized with tools"""
-        agent = create_lc_agent()
+    def test_agent_with_custom_mcp_server_urls(self):
+        """Test agent initialization with custom MCP server URLs"""
+        # Set custom server URLs
+        os.environ["MCP_RESUME_URL"] = "http://custom-resume:9001"
+        os.environ["MCP_VECTOR_URL"] = "http://custom-vector:9002"
+        os.environ["MCP_CODE_URL"] = "http://custom-code:9003"
 
-        assert agent is not None
-        assert hasattr(agent, "invoke")
-
-    @pytest.mark.integration
-    def test_agent_executor_creation(self):
-        """Test agent executor is created successfully"""
-        agent = create_lc_agent()
-
-        assert agent is not None
-        assert hasattr(agent, "invoke")
-
-    @pytest.mark.integration
-    def test_environment_variables_passed_to_agent(self):
-        """Test environment variables are correctly passed to agent"""
-        os.environ["OLLAMA_HOST"] = "http://test-ollama:11434"
-        os.environ["MCP_RESUME_URL"] = "http://test-resume:9001"
-
-        agent = create_lc_agent()
-
-        # Verify agent is created with env vars
-        assert agent is not None
+        try:
+            agent = create_lc_agent()
+            assert agent is not None
+            assert hasattr(agent, "invoke")
+        finally:
+            # Clean up
+            del os.environ["MCP_RESUME_URL"]
+            del os.environ["MCP_VECTOR_URL"]
+            del os.environ["MCP_CODE_URL"]
 
 
 class TestServiceHealthChecks:
     """Test service health and connectivity"""
 
     @pytest.mark.integration
-    def test_mcp_server_urls_configured(self):
-        """Test MCP server URLs are configured via environment"""
-        test_urls = {
-            "MCP_RESUME_URL": "http://test-resume:9001",
-            "MCP_VECTOR_URL": "http://test-vector:9002",
-            "MCP_CODE_URL": "http://test-code:9003",
-        }
+    def test_agent_can_handle_mcp_server_urls(self):
+        """Test agent can work with different MCP server configurations"""
+        from agent.config import MCP_RESUME_URL, MCP_VECTOR_URL, MCP_CODE_URL
 
-        for key, value in test_urls.items():
-            os.environ[key] = value
+        # Verify the config module can read URLs (from environment or defaults)
+        assert MCP_RESUME_URL is not None
+        assert MCP_VECTOR_URL is not None
+        assert MCP_CODE_URL is not None
 
+        # Agent should be created regardless of server availability
         agent = create_lc_agent()
-
-        assert agent is not None
-
-        # Clean up
-        for key in test_urls:
-            if key in os.environ:
-                del os.environ[key]
-
-    @pytest.mark.integration
-    def test_llm_model_configured(self):
-        """Test LLM is configured with correct model"""
-        expected_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b-instruct-q4_K_M")
-
-        agent = create_lc_agent()
-
         assert agent is not None
 
 
@@ -104,64 +79,30 @@ class TestAgentErrorHandling:
 
 
 class TestAgentPromptTemplate:
-    """Test agent prompt template configuration"""
+    """Test agent prompt template and initialization"""
 
     @pytest.mark.unit
-    def test_agent_has_system_prompt(self):
-        """Test agent can be created with system prompt"""
+    def test_agent_initializes_successfully(self):
+        """Test agent can be created and is ready for use"""
         agent = create_lc_agent()
 
-        # The agent should be properly created
-        assert agent is not None
-
-    @pytest.mark.unit
-    def test_subject_name_env_variable(self):
-        """Test subject name is read from environment"""
-        os.environ["SUBJECT_NAME"] = "TestUser"
-
-        # Create new instance to pick up env var
-        subject = os.getenv("SUBJECT_NAME")
-        assert subject == "TestUser"
-
-        # Clean up
-        del os.environ["SUBJECT_NAME"]
-
-    @pytest.mark.unit
-    def test_default_subject_name(self):
-        """Test default subject name if not provided"""
-        if "SUBJECT_NAME" in os.environ:
-            del os.environ["SUBJECT_NAME"]
-
-        subject = os.getenv("SUBJECT_NAME", "Ross")
-        assert subject == "Ross"
-
-
-class TestAgentWrapperInterface:
-    """Test agent interface"""
-
-    @pytest.mark.unit
-    def test_agent_has_invoke_method(self):
-        """Test agent has invoke method"""
-        agent = create_lc_agent()
-
+        # The agent should be properly created and invokable
         assert agent is not None
         assert hasattr(agent, "invoke")
 
+
+class TestAgentWrapperInterface:
+    """Test agent interface - Note: invoke method tests are in test_agent.py"""
+
     @pytest.mark.unit
-    def test_agent_is_runnable(self):
-        """Test agent is a runnable"""
+    def test_agent_is_langchain_runnable(self):
+        """Test agent is a proper LangChain Runnable with invoke capability"""
         agent = create_lc_agent()
 
-        # Agent should be a LangChain Runnable
+        # ChatOllama with bind_tools is a LangChain Runnable
         assert agent is not None
         assert callable(agent.invoke)
-
-    @pytest.mark.unit
-    def test_agent_wrapper_invoke_returns_text(self):
-        """Test agent has required interface"""
-        agent = create_lc_agent()
-
-        assert agent is not None
+        # Can be used with LangChain's async/stream utilities
         assert hasattr(agent, "invoke")
 
 

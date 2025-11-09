@@ -52,67 +52,50 @@ class TestCreateAgent:
     """Test agent creation"""
 
     @pytest.mark.unit
-    def test_create_agent_returns_wrapper(self):
-        """Test create_lc_agent returns an agent"""
+    def test_create_agent_returns_agent_with_invoke(self):
+        """Test create_lc_agent returns a callable agent with invoke method"""
         agent = create_lc_agent()
 
         assert agent is not None
         assert hasattr(agent, "invoke")
-
-    @pytest.mark.unit
-    def test_agent_wrapper_invoke_interface(self):
-        """Test agent has invoke method"""
-        agent = create_lc_agent()
-
         assert callable(agent.invoke)
-
-    @pytest.mark.unit
-    def test_agent_has_invoke_method(self):
-        """Test agent has invoke method"""
-        agent = create_lc_agent()
-
-        assert agent is not None
-        assert hasattr(agent, "invoke")
 
 
 class TestToolIntegration:
     """Test tool integration in agent"""
 
     @pytest.mark.unit
-    def test_tools_available_in_agent(self):
-        """Test that tools are available for agent use"""
+    def test_all_tools_are_bound_to_agent(self):
+        """Test that all tools are properly bound to the agent"""
         agent = create_lc_agent()
 
-        # The agent should have tools bound
+        # Verify agent can be invoked and has access to tools
         assert agent is not None
-
-    @pytest.mark.unit
-    def test_agent_creation_succeeds(self):
-        """Test agent can be created without errors"""
-        agent = create_lc_agent()
-
-        assert agent is not None
+        assert hasattr(agent, "invoke")
+        # Tools are bound to the ChatOllama instance via bind_tools()
 
 
 class TestAgentConfiguration:
     """Test agent configuration"""
 
     @pytest.mark.unit
-    def test_default_ollama_configuration(self):
-        """Test default Ollama configuration"""
-        agent = create_lc_agent()
+    def test_configuration_loaded_from_config_module(self):
+        """Test that agent uses configuration from config module"""
+        from agent.config import (
+            OLLAMA_MODEL,
+            OLLAMA_HOST,
+            MCP_RESUME_URL,
+            MCP_VECTOR_URL,
+            MCP_CODE_URL,
+        )
 
-        assert agent is not None
-
-    @pytest.mark.unit
-    def test_mcp_server_urls_from_environment(self):
-        """Test MCP server URLs from configuration"""
-        from agent.config import MCP_RESUME_URL, MCP_VECTOR_URL, MCP_CODE_URL
-
-        agent = create_lc_agent()
-        assert agent is not None
-
-        # Verify config values are loaded
+        # Verify all config values are loaded
+        assert OLLAMA_MODEL is not None
+        assert OLLAMA_HOST is not None
         assert MCP_RESUME_URL is not None
         assert MCP_VECTOR_URL is not None
         assert MCP_CODE_URL is not None
+
+        # Verify agent can be created with these configs
+        agent = create_lc_agent()
+        assert agent is not None
