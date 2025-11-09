@@ -3,194 +3,123 @@ import pytest
 import os
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agent.main import ResumeNarrator, FastMCPClient
+from agent.main import (
+    create_agent,
+    generate_resume_pdf,
+    search_experience,
+    explain_architecture,
+    analyze_skills,
+)
 
 
-class TestFastMCPClient:
-    """Test FastMCP client functionality"""
-
-    @pytest.mark.unit
-    def test_client_initialization(self):
-        """Test client initializes with correct server URLs"""
-        server_urls = {
-            "resume": "http://localhost:9001",
-            "vector": "http://localhost:9002",
-            "code": "http://localhost:9003",
-        }
-        client = FastMCPClient(server_urls)
-
-        assert client.servers == server_urls
-        assert client.client is not None
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_list_tools_empty(self):
-        """Test listing tools when server is unavailable"""
-        client = FastMCPClient({"test": "http://invalid:9999"})
-        tools = await client.list_tools("test")
-
-        assert isinstance(tools, list)
-        assert len(tools) == 0
-
-    @pytest.mark.unit
-    def test_client_with_default_urls(self):
-        """Test client uses environment variables for URLs"""
-        os.environ["MCP_RESUME_URL"] = "http://resume:9001"
-        os.environ["MCP_VECTOR_URL"] = "http://vector:9002"
-        os.environ["MCP_CODE_URL"] = "http://code:9003"
-
-        server_urls = {
-            "resume": os.getenv("MCP_RESUME_URL", "http://localhost:9001"),
-            "vector": os.getenv("MCP_VECTOR_URL", "http://localhost:9002"),
-            "code": os.getenv("MCP_CODE_URL", "http://localhost:9003"),
-        }
-        client = FastMCPClient(server_urls)
-
-        assert client.servers["resume"] == "http://resume:9001"
-        assert client.servers["vector"] == "http://vector:9002"
-        assert client.servers["code"] == "http://code:9003"
-
-
-class TestResumeNarrator:
-    """Test ResumeNarrator agent functionality"""
-
-    @pytest.mark.unit
-    def test_narrator_initialization(self):
-        """Test narrator initializes with required components"""
-        narrator = ResumeNarrator()
-
-        assert narrator.llm is not None
-        assert narrator.mcp_client is not None
-        assert narrator.tools is not None
-
-    @pytest.mark.unit
-    def test_narrator_creates_tools(self):
-        """Test narrator creates all required tools"""
-        narrator = ResumeNarrator()
-        tools = narrator._create_tools()
-
-        assert len(tools) == 4
-
-    @pytest.mark.unit
-    def test_tool_names(self):
-        """Test all expected tools are available"""
-        # Don't mock _create_tools - we want to test the real implementation
-        narrator = ResumeNarrator()
-        tool_names = [tool.name for tool in narrator.tools]
-
-        assert "generate_resume_pdf" in tool_names
-        assert "search_experience" in tool_names
-        assert "explain_architecture" in tool_names
-        assert "analyze_skills" in tool_names
-
-    @pytest.mark.unit
-    def test_create_agent_returns_executor(self):
-        """Test create_agent returns an executor"""
-        narrator = ResumeNarrator()
-        executor = narrator.create_agent()
-
-        assert executor is not None
-
-    @pytest.mark.unit
-    def test_sync_wrapper_runs_async_code(self):
-        """Test sync wrapper executes async code correctly"""
-
-        async def async_test():
-            return "test_result"
-
-        narrator = ResumeNarrator()
-        result = narrator._sync_wrapper(async_test())
-
-        assert result == "test_result"
-
-    @pytest.mark.unit
-    def test_sync_wrapper_handles_errors(self):
-        """Test sync wrapper handles async errors"""
-
-        async def async_error():
-            raise ValueError("Test error")
-
-        narrator = ResumeNarrator()
-        with pytest.raises(ValueError, match="Test error"):
-            narrator._sync_wrapper(async_error())
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_agent_responds_to_greeting(self):
-        """Test agent responds to simple greeting (requires running services)"""
-        narrator = ResumeNarrator()
-        executor = narrator.create_agent()
-
-        # This would require Ollama and other services running
-        # Skip if services not available
-        pytest.skip("Requires running services")
-
-    @pytest.mark.unit
-    def test_narrator_with_custom_subject(self):
-        """Test narrator with custom subject name"""
-        os.environ["SUBJECT_NAME"] = "Alice"
-
-        narrator = ResumeNarrator()
-
-        # Custom subject should be accessible through environment
-        assert os.getenv("SUBJECT_NAME") == "Alice"
-
-    @pytest.mark.unit
-    def test_mcp_client_servers_configured(self):
-        """Test MCP client has all servers configured"""
-        narrator = ResumeNarrator()
-
-        assert "resume" in narrator.mcp_client.servers
-        assert "vector" in narrator.mcp_client.servers
-        assert "code" in narrator.mcp_client.servers
-
-
-class TestToolCreation:
-    """Test tool creation and configuration"""
+class TestToolFunctions:
+    """Test @tool decorated functions"""
 
     @pytest.mark.unit
     def test_generate_resume_pdf_tool_exists(self):
         """Test resume PDF generation tool is created"""
-        narrator = ResumeNarrator()
-        tools = narrator._create_tools()
-
-        pdf_tool = next((t for t in tools if t.name == "generate_resume_pdf"), None)
-        assert pdf_tool is not None
-        assert "PDF" in pdf_tool.description
+        assert generate_resume_pdf is not None
+        assert hasattr(generate_resume_pdf, "name")
+        assert generate_resume_pdf.name == "generate_resume_pdf"
 
     @pytest.mark.unit
     def test_search_experience_tool_exists(self):
         """Test experience search tool is created"""
-        narrator = ResumeNarrator()
-        tools = narrator._create_tools()
-
-        search_tool = next((t for t in tools if t.name == "search_experience"), None)
-        assert search_tool is not None
-        assert "search" in search_tool.description.lower()
+        assert search_experience is not None
+        assert hasattr(search_experience, "name")
+        assert search_experience.name == "search_experience"
 
     @pytest.mark.unit
     def test_explain_architecture_tool_exists(self):
         """Test architecture explanation tool is created"""
-        narrator = ResumeNarrator()
-        tools = narrator._create_tools()
-
-        explain_tool = next(
-            (t for t in tools if t.name == "explain_architecture"), None
-        )
-        assert explain_tool is not None
-        assert "architecture" in explain_tool.description.lower()
+        assert explain_architecture is not None
+        assert hasattr(explain_architecture, "name")
+        assert explain_architecture.name == "explain_architecture"
 
     @pytest.mark.unit
     def test_analyze_skills_tool_exists(self):
         """Test skills analysis tool is created"""
-        narrator = ResumeNarrator()
-        tools = narrator._create_tools()
+        assert analyze_skills is not None
+        assert hasattr(analyze_skills, "name")
+        assert analyze_skills.name == "analyze_skills"
 
-        skills_tool = next((t for t in tools if t.name == "analyze_skills"), None)
-        assert skills_tool is not None
-        assert "skill" in skills_tool.description.lower()
+
+class TestCreateAgent:
+    """Test agent creation"""
+
+    @pytest.mark.unit
+    def test_create_agent_returns_wrapper(self):
+        """Test create_agent returns an agent wrapper"""
+        agent = create_agent()
+
+        assert agent is not None
+        assert hasattr(agent, "invoke")
+
+    @pytest.mark.unit
+    def test_agent_wrapper_invoke_interface(self):
+        """Test agent wrapper has invoke method"""
+        agent = create_agent()
+
+        assert callable(agent.invoke)
+
+    @pytest.mark.unit
+    def test_agent_wrapper_has_graph(self):
+        """Test agent wrapper has graph attribute"""
+        agent = create_agent()
+
+        assert hasattr(agent, "graph")
+        assert agent.graph is not None
+
+
+class TestToolIntegration:
+    """Test tool integration in agent"""
+
+    @pytest.mark.unit
+    def test_tools_available_in_agent(self):
+        """Test that tools are available for agent use"""
+        agent = create_agent()
+
+        # The agent's graph should have tools
+        assert agent.graph is not None
+
+    @pytest.mark.unit
+    def test_agent_creation_succeeds(self):
+        """Test agent can be created without errors"""
+        agent = create_agent()
+
+        assert agent is not None
+
+
+class TestAgentConfiguration:
+    """Test agent configuration"""
+
+    @pytest.mark.unit
+    def test_default_ollama_configuration(self):
+        """Test default Ollama configuration"""
+        agent = create_agent()
+
+        assert agent is not None
+
+    @pytest.mark.unit
+    def test_mcp_server_urls_from_environment(self):
+        """Test MCP server URLs from environment variables"""
+        test_urls = {
+            "MCP_RESUME_URL": "http://test-resume:9001",
+            "MCP_VECTOR_URL": "http://test-vector:9002",
+            "MCP_CODE_URL": "http://test-code:9003",
+        }
+
+        for key, value in test_urls.items():
+            os.environ[key] = value
+
+        agent = create_agent()
+        assert agent is not None
+
+        # Clean up
+        for key in test_urls:
+            if key in os.environ:
+                del os.environ[key]

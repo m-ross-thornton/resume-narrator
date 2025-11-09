@@ -1,6 +1,6 @@
 # agent/ui/chainlit_app.py
 import chainlit as cl
-from agent.main import ResumeNarrator
+from agent.main import create_agent
 import os
 
 SUBJECT_NAME = os.getenv("SUBJECT_NAME", "Ross")
@@ -8,8 +8,7 @@ SUBJECT_NAME = os.getenv("SUBJECT_NAME", "Ross")
 
 @cl.on_chat_start
 async def start():
-    agent = ResumeNarrator()
-    executor = agent.create_agent()
+    executor = create_agent()
     cl.user_session.set("agent", executor)
 
     await cl.Message(
