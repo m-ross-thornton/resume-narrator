@@ -1,5 +1,5 @@
 """
-Resume Narrator Agent using LangChain 1.0
+Resume Narrator Agent using LangChain 1.0 with LangGraph
 """
 import json
 import httpx
@@ -7,7 +7,6 @@ from langchain_ollama import ChatOllama
 from langchain.tools import tool
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnablePassthrough
 from typing import Any
 
 from agent.config import (
@@ -98,14 +97,16 @@ def analyze_skills() -> str:
 
 
 def create_lc_agent() -> Any:
-    """Create the LangChain 1.0 agent with tool calling.
+    """Create the LangChain 1.0 ReAct agent with tool calling via LangGraph.
 
-    Returns a Runnable that accepts {"input": "..."} and returns output.
+    Returns an agent that accepts {"input": "..."} and returns {"output": "..."}.
+    The agent automatically executes tools in a loop until it has a final answer.
     """
     # Initialize LLM with configured settings
     llm = ChatOllama(
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
+        temperature=0.3,
     )
 
     # Define tools
@@ -116,31 +117,43 @@ def create_lc_agent() -> Any:
         analyze_skills,
     ]
 
-    # Create agent
+    # Create agent using LangChain 1.0/LangGraph
+    # This creates a stateful agent that can execute tools in a loop
     agent = create_agent(llm, tools)
 
-    # Wrapper to convert dict input format to message format
+    # Wrapper to convert dict input format expected by Chainlit
     class AgentWrapper:
-        def __init__(self, agent):
-            self.agent = agent
+        def __init__(self, agent_graph):
+            self.agent_graph = agent_graph
 
         def invoke(self, input_dict: dict) -> dict:
-            """Convert dict input to messages and invoke agent."""
+            """Invoke agent with user input and return response.
+
+            Args:
+                input_dict: Dict with "input" key containing user message
+
+            Returns:
+                Dict with "output" key containing agent response
+            """
             user_input = input_dict.get("input", "")
-            # Create message for the agent
-            messages = [HumanMessage(content=user_input)]
-            # Invoke agent and get result
-            result = self.agent.invoke({"messages": messages})
-            # Extract output from result
+
+            # Create initial state with messages
+            initial_state = {"messages": [HumanMessage(content=user_input)]}
+
+            # Invoke agent - it will execute tools as needed
+            result = self.agent_graph.invoke(initial_state)
+
+            # Extract final response from messages
             output = ""
             if isinstance(result, dict) and "messages" in result:
                 messages = result["messages"]
                 if messages:
-                    output = str(messages[-1].content)
-            elif hasattr(result, "content"):
-                output = str(result.content)
+                    # Get the last message which should be the final response
+                    last_message = messages[-1]
+                    output = str(last_message.content)
             else:
                 output = str(result)
+
             return {"output": output}
 
     return AgentWrapper(agent)
