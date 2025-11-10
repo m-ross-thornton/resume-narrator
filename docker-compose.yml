@@ -162,6 +162,16 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
 
+  autoupdater:
+    build: ./auto-updater
+    ports:
+      - "8008:8008"
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /project/resume_narrator/:/host/project
+    command: python webhook_listener.py
+
 volumes:
   ollama_data:
   chroma_data:
