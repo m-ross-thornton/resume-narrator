@@ -37,7 +37,7 @@ The pipeline consists of two main stages:
            ▼
 ┌─────────────────────────────────────────┐
 │  Stage 2: Vector Indexing (ChromaDB)    │
-│  data/load_experience_to_vector_db.py    │
+│  scripts/load_experience_to_vector_db.py    │
 │                                         │
 │ Indexes structured data into:           │
 │ • Semantic embeddings (all-MiniLM)      │
@@ -178,7 +178,7 @@ Populating experience data...
 ## Stage 2: Vector Database Indexing
 
 ### Location
-`data/load_experience_to_vector_db.py`
+`scripts/load_experience_to_vector_db.py`
 
 ### What It Does
 Reads the structured JSON files from Stage 1 and indexes them into ChromaDB with semantic embeddings for fast similarity search.
@@ -209,16 +209,16 @@ Reads the structured JSON files from Stage 1 and indexes them into ChromaDB with
 
 ```bash
 # Load all collections (default)
-python data/load_experience_to_vector_db.py
+python scripts/load_experience_to_vector_db.py
 
 # Load specific collection
-python data/load_experience_to_vector_db.py --collections work_history projects
+python scripts/load_experience_to_vector_db.py --collections work_history projects
 
 # Reset database before loading
-python data/load_experience_to_vector_db.py --reset
+python scripts/load_experience_to_vector_db.py --reset
 
 # Custom ChromaDB path
-python data/load_experience_to_vector_db.py --chroma-path /custom/path/chroma_db
+python scripts/load_experience_to_vector_db.py --chroma-path /custom/path/chroma_db
 ```
 
 **CLI Options:**
@@ -293,7 +293,7 @@ ollama pull llama3.1:8b-instruct-q4_K_M
 python scripts/populate_experience_data.py
 
 # 4. Index extracted data into vector database
-python data/load_experience_to_vector_db.py
+python scripts/load_experience_to_vector_db.py
 
 # 5. Verify indexing with tests
 pytest tests/test_vector_db_data_pipeline.py -v
@@ -359,7 +359,7 @@ docker compose logs ollama
 |------|---------|
 | `scripts/populate_experience_data.py` | Stage 1: Extract raw docs → JSON |
 | `scripts/requirements.txt` | Dependencies for extraction scripts |
-| `data/load_experience_to_vector_db.py` | Stage 2: Index JSON → Vector DB |
+| `scripts/load_experience_to_vector_db.py` | Stage 2: Index JSON → Vector DB |
 | `data/experience/work_history.json` | Structured work history data |
 | `data/experience/projects.json` | Structured projects data |
 | `data/experience/skills.json` | Structured skills data |

@@ -341,7 +341,7 @@ class ExperienceDataPopulator:
         logger.info("1. Review the generated JSON files in data/experience/")
         logger.info("2. Customize them if needed")
         logger.info(
-            "3. Run: python data/load_experience_to_vector_db.py to index the data in ChromaDB"
+            "3. Run: python scripts/load_experience_to_vector_db.py to index the data in ChromaDB"
         )
 
 

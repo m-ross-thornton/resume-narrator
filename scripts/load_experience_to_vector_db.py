@@ -6,17 +6,17 @@ This script reads structured JSON files from /data/experience/ and indexes them
 into the ChromaDB vector database for semantic search by the agent.
 
 Usage:
-    python data/load_experience_to_vector_db.py [--collections COLLECTION] [--reset]
+    python scripts/load_experience_to_vector_db.py [--collections COLLECTION] [--reset]
 
 Examples:
     # Load all collections
-    python data/load_experience_to_vector_db.py
+    python scripts/load_experience_to_vector_db.py
 
     # Load only work history
-    python data/load_experience_to_vector_db.py --collections work_history
+    python scripts/load_experience_to_vector_db.py --collections work_history
 
     # Reset and reload all data
-    python data/load_experience_to_vector_db.py --reset
+    python scripts/load_experience_to_vector_db.py --reset
 """
 
 import json
