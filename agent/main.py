@@ -3,11 +3,14 @@ Resume Narrator Agent using LangChain 1.0 with LangGraph
 """
 import json
 import httpx
+import logging
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from agent.config import (
     OLLAMA_MODEL,
@@ -108,6 +111,8 @@ def create_lc_agent() -> Any:
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
         temperature=0.3,
+        num_ctx=4096,  # Context window
+        num_predict=2048,  # Max tokens for response
     )
 
     # Define tools
@@ -118,10 +123,14 @@ def create_lc_agent() -> Any:
         analyze_skills,
     ]
 
+    # Explicitly bind tools to the LLM so it understands how to invoke them
+    # This tells the model which tools are available and their signatures
+    llm_with_tools = llm.bind_tools(tools)
+
     # Create agent using LangGraph's create_react_agent
-    # This properly binds tools to the LLM for tool calling
-    # The ReAct agent will automatically loop until it has a final answer
-    agent = create_react_agent(llm, tools)
+    # The agent will properly handle tool calling and execution
+    # It loops through: model -> tool selection -> tool execution -> observation -> repeat
+    agent = create_react_agent(llm_with_tools, tools)
 
     # Wrapper to convert dict input format expected by Chainlit
     class AgentWrapper:
@@ -148,23 +157,61 @@ def create_lc_agent() -> Any:
                 ]
             }
 
-            # Invoke agent - it will execute tools as needed
-            # The graph will loop through the ReAct cycle until it produces a final response
-            result = self.agent_graph.invoke(initial_state)
+            try:
+                # Invoke agent - it will execute tools as needed
+                # The graph will loop through the ReAct cycle until it produces a final response
+                result = self.agent_graph.invoke(initial_state)
 
-            # Extract final response from messages
-            output = ""
-            if isinstance(result, dict) and "messages" in result:
-                messages = result["messages"]
-                if messages:
-                    # Get the last message which should be the final response
-                    # This will be an AIMessage or similar after the agent finishes
-                    last_message = messages[-1]
-                    output = str(last_message.content)
-            else:
-                output = str(result)
+                # Extract final response from messages
+                output = ""
+                if isinstance(result, dict) and "messages" in result:
+                    messages = result["messages"]
+                    logger.debug(f"Agent returned {len(messages)} messages")
 
-            return {"output": output}
+                    if messages:
+                        # Get the last message which should be the final response
+                        # This will be an AIMessage after the agent finishes
+                        last_message = messages[-1]
+                        logger.debug(
+                            f"Last message type: {type(last_message).__name__}, "
+                            f"content preview: {str(last_message.content)[:100]}"
+                        )
+
+                        # Extract content from message
+                        if hasattr(last_message, "content"):
+                            output = str(last_message.content)
+                        else:
+                            output = str(last_message)
+
+                        # If the output contains tool call syntax (fallback for LLMs that don't
+                        # properly support function calling), extract actual content
+                        if (
+                            "(" in output
+                            and output.count("(") == output.count(")")
+                            and any(
+                                tool_name in output
+                                for tool_name in [
+                                    "search_experience",
+                                    "generate_resume_pdf",
+                                    "explain_architecture",
+                                    "analyze_skills",
+                                ]
+                            )
+                        ):
+                            logger.warning(
+                                "Warning: Agent output contains tool call syntax. "
+                                "This suggests the model is not properly using function calling."
+                            )
+                else:
+                    output = str(result)
+
+                return {"output": output}
+
+            except Exception as e:
+                logger.error(f"Error invoking agent: {e}", exc_info=True)
+                return {
+                    "output": f"I encountered an error while processing your request: {str(e)}"
+                }
 
     return AgentWrapper(agent)
 
