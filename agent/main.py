@@ -5,8 +5,8 @@ import json
 import httpx
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
-from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.prebuilt import create_react_agent
 from typing import Any
 
 from agent.config import (
@@ -118,9 +118,10 @@ def create_lc_agent() -> Any:
         analyze_skills,
     ]
 
-    # Create agent using LangChain 1.0/LangGraph
-    # This creates a stateful agent that can execute tools in a loop
-    agent = create_agent(llm, tools)
+    # Create agent using LangGraph's create_react_agent
+    # This properly binds tools to the LLM for tool calling
+    # The ReAct agent will automatically loop until it has a final answer
+    agent = create_react_agent(llm, tools)
 
     # Wrapper to convert dict input format expected by Chainlit
     class AgentWrapper:
@@ -138,7 +139,8 @@ def create_lc_agent() -> Any:
             """
             user_input = input_dict.get("input", "")
 
-            # Create initial state with messages
+            # Create initial state with messages for the graph
+            # The create_react_agent expects messages in the state
             initial_state = {
                 "messages": [
                     SystemMessage(content=SYSTEM_PROMPT),
@@ -147,6 +149,7 @@ def create_lc_agent() -> Any:
             }
 
             # Invoke agent - it will execute tools as needed
+            # The graph will loop through the ReAct cycle until it produces a final response
             result = self.agent_graph.invoke(initial_state)
 
             # Extract final response from messages
@@ -155,6 +158,7 @@ def create_lc_agent() -> Any:
                 messages = result["messages"]
                 if messages:
                     # Get the last message which should be the final response
+                    # This will be an AIMessage or similar after the agent finishes
                     last_message = messages[-1]
                     output = str(last_message.content)
             else:
