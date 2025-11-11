@@ -146,10 +146,10 @@ class VectorDBManager:
         return len(documents)
 
 
-@mcp.tool()
-async def search_experience(request: VectorSearchRequest) -> Dict[str, Any]:
+async def _search_experience_impl(request: VectorSearchRequest) -> Dict[str, Any]:
     """
-    Search through professional experience and projects
+    Internal implementation for searching experience.
+    Called by both the tool and HTTP endpoint.
 
     Args:
         request: Search parameters including query, filters, and collection
@@ -189,9 +189,15 @@ async def search_experience(request: VectorSearchRequest) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def index_experience_data(request: DocumentIndexRequest) -> Dict[str, Any]:
+async def search_experience(request: VectorSearchRequest) -> Dict[str, Any]:
+    """Search through professional experience and projects (MCP Tool)."""
+    return await _search_experience_impl(request)
+
+
+async def _index_experience_data_impl(request: DocumentIndexRequest) -> Dict[str, Any]:
     """
-    Index new documents into the vector database
+    Internal implementation for indexing documents.
+    Called by both the tool and HTTP endpoint.
 
     Args:
         request: Documents and metadata to index
@@ -247,6 +253,12 @@ async def index_experience_data(request: DocumentIndexRequest) -> Dict[str, Any]
 
 
 @mcp.tool()
+async def index_experience_data(request: DocumentIndexRequest) -> Dict[str, Any]:
+    """Index new documents into the vector database (MCP Tool)."""
+    return await _index_experience_data_impl(request)
+
+
+@mcp.tool()
 async def get_similar_projects(project_name: str, top_k: int = 3) -> Dict[str, Any]:
     """
     Find projects similar to a given project
@@ -294,10 +306,10 @@ async def get_similar_projects(project_name: str, top_k: int = 3) -> Dict[str, A
         }
 
 
-@mcp.tool()
-async def analyze_skill_coverage() -> Dict[str, Any]:
+async def _analyze_skill_coverage_impl() -> Dict[str, Any]:
     """
-    Analyze skill coverage across all experiences and projects
+    Internal implementation for analyzing skill coverage.
+    Called by both the tool and HTTP endpoint.
 
     Returns:
         Skill analysis including frequency, categories, and gaps
@@ -351,6 +363,12 @@ async def analyze_skill_coverage() -> Dict[str, Any]:
         return {"status": "error", "message": f"Failed to analyze skills: {str(e)}"}
 
 
+@mcp.tool()
+async def analyze_skill_coverage() -> Dict[str, Any]:
+    """Analyze skill coverage across all experiences and projects (MCP Tool)."""
+    return await _analyze_skill_coverage_impl()
+
+
 # Add custom REST routes for HTTP API
 from starlette.responses import JSONResponse
 from starlette.requests import Request
@@ -368,7 +386,7 @@ async def search_experience_endpoint(request: Request):
     try:
         data = await request.json()
         search_request = VectorSearchRequest(**data)
-        result = await search_experience(search_request)
+        result = await _search_experience_impl(search_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
@@ -380,7 +398,7 @@ async def index_documents_endpoint(request: Request):
     try:
         data = await request.json()
         index_request = DocumentIndexRequest(**data)
-        result = await index_experience_data(index_request)
+        result = await _index_experience_data_impl(index_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
@@ -390,7 +408,7 @@ async def index_documents_endpoint(request: Request):
 async def analyze_skills_endpoint(request: Request):
     """REST endpoint for analyzing skills"""
     try:
-        result = await analyze_skill_coverage()
+        result = await _analyze_skill_coverage_impl()
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

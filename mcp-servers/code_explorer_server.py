@@ -180,10 +180,10 @@ class ArchitectureExplorer:
             return {"error": f"Failed to parse docker-compose.yml: {str(e)}"}
 
 
-@mcp.tool()
-async def explain_architecture(request: CodeAnalysisRequest) -> Dict[str, Any]:
+async def _explain_architecture_impl(request: CodeAnalysisRequest) -> Dict[str, Any]:
     """
-    Explain how the chatbot architecture works
+    Internal implementation for explaining architecture.
+    Called by both the tool and HTTP endpoint.
 
     Args:
         request: Component and detail level to explain
@@ -272,6 +272,20 @@ async def explain_architecture(request: CodeAnalysisRequest) -> Dict[str, Any]:
             "status": "error",
             "message": f"Failed to explain architecture: {str(e)}",
         }
+
+
+@mcp.tool()
+async def explain_architecture(request: CodeAnalysisRequest) -> Dict[str, Any]:
+    """
+    Explain how the chatbot architecture works (MCP Tool).
+
+    Args:
+        request: Component and detail level to explain
+
+    Returns:
+        Detailed explanation of the requested component
+    """
+    return await _explain_architecture_impl(request)
 
 
 @mcp.tool()
@@ -572,7 +586,7 @@ async def explain_architecture_endpoint(request: Request):
     try:
         data = await request.json()
         analysis_request = CodeAnalysisRequest(**data)
-        result = await explain_architecture(analysis_request)
+        result = await _explain_architecture_impl(analysis_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)

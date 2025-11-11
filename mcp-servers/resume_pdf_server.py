@@ -202,10 +202,10 @@ class ResumePDFGenerator:
         pass
 
 
-@mcp.tool()
-async def generate_resume_pdf(request: ResumeRequest) -> Dict[str, Any]:
+async def _generate_resume_pdf_impl(request: ResumeRequest) -> Dict[str, Any]:
     """
-    Generate a PDF resume from stored data
+    Internal implementation for generating PDF resume.
+    Called by both the tool and HTTP endpoint.
 
     Args:
         request: ResumeRequest with template and section preferences
@@ -248,6 +248,20 @@ async def generate_resume_pdf(request: ResumeRequest) -> Dict[str, Any]:
             "message": f"Failed to generate resume: {str(e)}",
             "file_path": None,
         }
+
+
+@mcp.tool()
+async def generate_resume_pdf(request: ResumeRequest) -> Dict[str, Any]:
+    """
+    Generate a PDF resume from stored data (MCP Tool).
+
+    Args:
+        request: ResumeRequest with template and section preferences
+
+    Returns:
+        Dictionary with file path and generation status
+    """
+    return await _generate_resume_pdf_impl(request)
 
 
 @mcp.tool()
@@ -305,7 +319,7 @@ async def generate_resume_pdf_endpoint(request: Request):
     try:
         data = await request.json()
         resume_request = ResumeRequest(**data)
-        result = await generate_resume_pdf(resume_request)
+        result = await _generate_resume_pdf_impl(resume_request)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
