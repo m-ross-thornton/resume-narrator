@@ -169,7 +169,7 @@ services:
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /project/resume_narrator/:/host/project
+      - /home/ross/project/resume-narrator/:/host/project
     command: python webhook_listener.py
 
 volumes:
