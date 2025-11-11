@@ -105,7 +105,7 @@ class OllamaDocumentParser:
         prompt = f"""Extract work history from this resume text and return ONLY valid JSON.
 
 Resume text:
-{resume_text[:3000]}
+{resume_text}
 
 Return a JSON array of work experience entries with this exact structure:
 [
@@ -130,7 +130,7 @@ Return ONLY the JSON array, no other text."""
         """Parse skills from resume using Ollama"""
         logger.info("  Parsing skills with Ollama...")
 
-        combined_text = (resume_text + "\n" + profile_text)[:3000]
+        combined_text = resume_text + "\n" + profile_text
 
         prompt = f"""Extract technical and domain skills from this text and return ONLY valid JSON.
 
@@ -159,7 +159,7 @@ Return ONLY the JSON array, no other text."""
         prompt = f"""Extract notable projects from this resume text and return ONLY valid JSON.
 
 Resume text:
-{resume_text[:3000]}
+{resume_text}
 
 Return a JSON array of projects with this exact structure:
 [

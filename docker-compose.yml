@@ -63,6 +63,26 @@ services:
       timeout: 10s
       retries: 3
 
+  init-vector-db:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    command: python /app/scripts/init_vector_db.py
+    restart: "no"
+    profiles:
+      - init
+
   mcp-vector:
     image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
     build:
