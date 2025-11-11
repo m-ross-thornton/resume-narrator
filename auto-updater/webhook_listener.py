@@ -54,7 +54,8 @@ def webhook():
 
             logger.info(f"Executing deployment script: {DEPLOY_SCRIPT}")
 
-            # Execute the deployment script asynchronously
+            # Execute the deployment script and WAIT for it to complete
+            # This allows us to capture output and see errors
             process = subprocess.Popen(
                 ["bash", DEPLOY_SCRIPT],
                 stdout=subprocess.PIPE,
@@ -62,19 +63,43 @@ def webhook():
                 text=True,
             )
 
-            logger.info(f"Deployment script initiated with PID: {process.pid}")
+            # Wait for process to complete and capture output
+            stdout, stderr = process.communicate()
+            return_code = process.returncode
 
-            return (
-                jsonify(
-                    {
-                        "status": "deployment_initiated",
-                        "message": "Deployment script has been started",
-                        "pid": process.pid,
-                        "script": DEPLOY_SCRIPT,
-                    }
-                ),
-                200,
-            )
+            # Log all output
+            if stdout:
+                logger.info(f"Script output:\n{stdout}")
+            if stderr:
+                logger.error(f"Script error output:\n{stderr}")
+
+            logger.info(f"Deployment script completed with return code: {return_code}")
+
+            if return_code == 0:
+                return (
+                    jsonify(
+                        {
+                            "status": "deployment_success",
+                            "message": "Deployment completed successfully",
+                            "script": DEPLOY_SCRIPT,
+                            "output": stdout,
+                        }
+                    ),
+                    200,
+                )
+            else:
+                return (
+                    jsonify(
+                        {
+                            "status": "deployment_failed",
+                            "message": f"Deployment script exited with code {return_code}",
+                            "script": DEPLOY_SCRIPT,
+                            "error": stderr,
+                            "output": stdout,
+                        }
+                    ),
+                    500,
+                )
 
         except Exception as e:
             logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
@@ -96,6 +121,50 @@ def health_check():
         ),
         200,
     )
+
+
+@app.route("/diagnose", methods=["GET"])
+def diagnose():
+    """Diagnostic endpoint to check deployment environment"""
+    import subprocess
+
+    diagnostics = {
+        "timestamp": datetime.now().isoformat(),
+        "docker_socket_exists": os.path.exists("/var/run/docker.sock"),
+        "deploy_script_exists": os.path.exists(DEPLOY_SCRIPT),
+        "deploy_script_path": DEPLOY_SCRIPT,
+        "host_mount_exists": os.path.exists("/host/project"),
+    }
+
+    # Try to check available mount points
+    try:
+        mount_output = subprocess.check_output(["mount"], text=True)
+        host_mounts = [line for line in mount_output.split("\n") if "/host" in line]
+        diagnostics["host_mounts"] = (
+            host_mounts if host_mounts else ["No /host mounts found"]
+        )
+    except:
+        diagnostics["host_mounts"] = ["Failed to check mounts"]
+
+    # Check if docker is accessible
+    try:
+        subprocess.run(["docker", "ps"], capture_output=True, timeout=5)
+        diagnostics["docker_accessible"] = True
+    except:
+        diagnostics["docker_accessible"] = False
+
+    # Check git config
+    try:
+        git_user = subprocess.check_output(
+            ["git", "config", "user.name"], text=True, cwd="/host/project"
+        ).strip()
+        diagnostics["git_config_ok"] = True
+        diagnostics["git_user"] = git_user
+    except:
+        diagnostics["git_config_ok"] = False
+        diagnostics["git_user"] = "Not configured or /host/project not found"
+
+    return jsonify(diagnostics), 200
 
 
 if __name__ == "__main__":
