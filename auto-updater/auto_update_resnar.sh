@@ -31,6 +31,11 @@ if [ ! -d ".git" ]; then
     exit 1
 fi
 
+# CRITICAL: Configure git to trust this directory
+# This prevents "dubious ownership" errors when container user differs from repo owner
+log "Configuring git to trust repository..."
+git config --global --add safe.directory "$PROJECT_DIR" 2>/dev/null || true
+
 log "Current branch: $(git rev-parse --abbrev-ref HEAD)"
 log "Current commit: $(git rev-parse --short HEAD)"
 
