@@ -6,7 +6,7 @@ import httpx
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
 from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from typing import Any
 
 from agent.config import (
@@ -15,6 +15,7 @@ from agent.config import (
     MCP_RESUME_URL,
     MCP_VECTOR_URL,
     MCP_CODE_URL,
+    SYSTEM_PROMPT,
 )
 
 
@@ -138,7 +139,12 @@ def create_lc_agent() -> Any:
             user_input = input_dict.get("input", "")
 
             # Create initial state with messages
-            initial_state = {"messages": [HumanMessage(content=user_input)]}
+            initial_state = {
+                "messages": [
+                    SystemMessage(content=SYSTEM_PROMPT),
+                    HumanMessage(content=user_input),
+                ]
+            }
 
             # Invoke agent - it will execute tools as needed
             result = self.agent_graph.invoke(initial_state)
