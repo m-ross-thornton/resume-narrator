@@ -190,6 +190,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/ross/project/resume-narrator/:/host/project
+    # Run as root to ensure Docker socket access
+    # (alternative: get host docker group GID via: stat -c '%g' /var/run/docker.sock)
+    user: "0"
+    environment:
+      - PROJECT_DIR=/host/project
+      - DOCKER_HOST=unix:///var/run/docker.sock
     command: python webhook_listener.py
 
 volumes:
