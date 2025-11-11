@@ -16,7 +16,7 @@ The pipeline consists of two main stages:
            │
            ▼
 ┌─────────────────────────────────────────┐
-│  Stage 1: Data Extraction (LangExtract) │
+│  Stage 1: Data Extraction (Ollama) │
 │  scripts/populate_experience_data.py     │
 │                                         │
 │ Uses Ollama to extract and structure:   │
@@ -65,18 +65,18 @@ The pipeline consists of two main stages:
 └──────────────────────────────┘
 ```
 
-## Stage 1: Data Extraction with LangExtract
+## Stage 1: Data Extraction with Ollama
 
 ### Location
 `scripts/populate_experience_data.py`
 
 ### What It Does
-Reads raw documents (PDF resume and CSV profile) and uses LangExtract with Ollama to intelligently extract and structure data into consistent JSON format.
+Reads raw documents (PDF resume and CSV profile) and uses Ollama with Ollama to intelligently extract and structure data into consistent JSON format.
 
 ### Key Classes
 
-#### `LangExtractDocumentParser`
-Main extraction engine using LangExtract with few-shot examples.
+#### `OllamaDocumentParser`
+Main extraction engine using Ollama with few-shot examples.
 
 **Methods:**
 - `parse_work_history(resume_text: str) -> List[Dict]`
@@ -109,7 +109,7 @@ Orchestrates the full extraction pipeline.
 ### Requirements
 
 ```
-langextract>=0.1.0
+Ollama>=0.1.0
 requests>=2.31.0
 pdfplumber>=0.10.0
 PyPDF2>=3.17.0
@@ -132,7 +132,7 @@ python scripts/populate_experience_data.py
 1. Finds data directory (works from any location)
 2. Loads profile from /data/raw/Profile.csv
 3. Extracts text from PDF in /data/raw/
-4. Uses LangExtract with Ollama to parse:
+4. Uses Ollama with Ollama to parse:
    - Work history → /data/experience/work_history.json
    - Skills → /data/experience/skills.json
    - Projects → /data/experience/projects.json
@@ -167,7 +167,7 @@ Populating experience data...
   - `/data/raw/Profile.csv` (LinkedIn export)
   - `/data/raw/Thornton Resume 2025.8.pdf` (or any PDF in /data/raw/)
 
-### LangExtract Features Used
+### Ollama Features Used
 
 1. **Few-shot examples:** Each extraction method provides example schemas
 2. **Structured output:** Enforces consistent JSON format
@@ -334,7 +334,7 @@ docker compose up -d ollama
 # or locally: ollama serve
 ```
 
-### Issue: "langextract not installed"
+### Issue: "Ollama not installed"
 **Solution:** Install dependencies
 ```bash
 pip install -r scripts/requirements.txt
@@ -347,7 +347,7 @@ ls data/raw/*.pdf
 pip install pdfplumber PyPDF2
 ```
 
-### Issue: "LangExtract failed to parse"
+### Issue: "Ollama failed to parse"
 **Solution:** Check Ollama logs for memory issues
 ```bash
 docker compose logs ollama
@@ -369,7 +369,7 @@ docker compose logs ollama
 ## Dependencies
 
 ### Stage 1 (Extraction)
-- **langextract**: Structured data extraction with LLMs
+- **Ollama**: Structured data extraction with LLMs
 - **pdfplumber**: PDF text extraction
 - **PyPDF2**: PDF backup extraction
 - **pydantic**: Data validation

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Script to populate experience data from raw sources using langextract with Ollama
+Script to populate experience data from raw sources using Ollama for parsing
 
 Reads from:
 - data/raw/Profile.csv - LinkedIn profile export
 - data/raw/Thornton Resume 2025.8.pdf - PDF resume
 
-Uses LangExtract with Ollama to parse and structure the data into:
+Uses Ollama to parse and structure the data into:
 - data/experience/work_history.json
 - data/experience/skills.json
 - data/experience/projects.json
@@ -17,14 +17,15 @@ import csv
 from pathlib import Path
 from typing import List, Dict, Any
 import sys
+import re
 import logging
 
 try:
-    import langextract as lx
+    import requests
 
-    HAS_LANGEXTRACT = True
+    HAS_REQUESTS = True
 except ImportError:
-    HAS_LANGEXTRACT = False
+    HAS_REQUESTS = False
 
 # Try to import PDF libraries
 try:
@@ -48,138 +49,134 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class LangExtractDocumentParser:
-    """Use LangExtract with Ollama to parse and structure experience documents"""
+class OllamaDocumentParser:
+    """Use Ollama to parse and structure experience documents"""
 
     def __init__(
         self,
         ollama_host: str = "http://localhost:11434",
         model: str = "llama3.1:8b-instruct-q4_K_M",
-        timeout: int = 300,
     ):
-        if not HAS_LANGEXTRACT:
+        if not HAS_REQUESTS:
             raise ImportError(
-                "langextract library required. Install with: pip install langextract"
+                "requests library required. Install with: pip install requests"
             )
 
         self.ollama_host = ollama_host
         self.model = model
-        self.timeout = timeout
+
+    def call_ollama(self, prompt: str) -> str:
+        """Call Ollama API to generate response"""
+        try:
+            response = requests.post(
+                f"{self.ollama_host}/api/generate",
+                json={"model": self.model, "prompt": prompt, "stream": False},
+                timeout=300,
+            )
+            response.raise_for_status()
+            return response.json().get("response", "")
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"    ⚠ Could not connect to Ollama: {e}")
+            return ""
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"    ⚠ Ollama API error: {e}")
+            return ""
+        except Exception as e:
+            logger.error(f"    ⚠ Error calling Ollama: {e}")
+            return ""
+
+    def _parse_json_response(self, response: str, default: Any = None) -> Any:
+        """Safely parse JSON response from Ollama"""
+        try:
+            # Try to find JSON in the response (in case there's extra text)
+            json_match = re.search(r"\[[\s\S]*\]|\{[\s\S]*\}", response)
+            if json_match:
+                json_str = json_match.group(0)
+                return json.loads(json_str)
+            return default if default is not None else []
+        except json.JSONDecodeError:
+            logger.warning(f"    ⚠ Could not parse JSON response: {response[:100]}")
+            return default if default is not None else []
 
     def parse_work_history(self, resume_text: str) -> List[Dict[str, Any]]:
-        """Parse work history from resume text using LangExtract"""
-        logger.info("  Parsing work history with LangExtract...")
+        """Parse work history from resume text using Ollama"""
+        logger.info("  Parsing work history with Ollama...")
 
-        # Define extraction schema with examples
-        description = """Extract work history entries from the resume.
-        Each entry should contain company name, job title, duration, description of the role,
-        key achievements, and relevant skills used."""
+        prompt = f"""Extract work history from this resume text and return ONLY valid JSON.
 
-        examples = [
-            {
-                "company": "Tech Corp",
-                "title": "Senior Engineer",
-                "duration": "Jan 2020 - Dec 2021",
-                "description": "Led development of cloud infrastructure",
-                "achievements": [
-                    "Reduced deployment time by 50%",
-                    "Mentored 5 junior engineers",
-                ],
-                "skills": ["Python", "Kubernetes", "AWS"],
-            }
-        ]
+Resume text:
+{resume_text[:3000]}
 
-        try:
-            result = lx.extract(
-                text_or_documents=resume_text,
-                prompt_description=description,
-                examples=examples,
-                model_id=self.model,
-                model_url=self.ollama_host,
-                output_format="json_list",
-                provider_kwargs={"timeout": self.timeout},
-            )
-            return result if isinstance(result, list) else []
-        except Exception as e:
-            logger.error(f"    ⚠ Error parsing work history: {e}")
-            return []
+Return a JSON array of work experience entries with this exact structure:
+[
+  {{
+    "company": "Company Name",
+    "title": "Job Title",
+    "duration": "Time duration",
+    "description": "Brief description of role",
+    "achievements": ["Achievement 1", "Achievement 2"],
+    "skills": ["Skill1", "Skill2"]
+  }}
+]
+
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
 
     def parse_skills(
         self, resume_text: str, profile_text: str = ""
     ) -> List[Dict[str, Any]]:
-        """Parse skills from resume using LangExtract"""
-        logger.info("  Parsing skills with LangExtract...")
+        """Parse skills from resume using Ollama"""
+        logger.info("  Parsing skills with Ollama...")
 
-        combined_text = resume_text + "\n" + profile_text
+        combined_text = (resume_text + "\n" + profile_text)[:3000]
 
-        description = """Extract technical and domain skills from the text.
-        Focus on programming languages, frameworks, tools, cloud platforms,
-        and domain expertise areas. Include proficiency level and category."""
+        prompt = f"""Extract technical and domain skills from this text and return ONLY valid JSON.
 
-        examples = [
-            {
-                "name": "Python",
-                "proficiency": "Expert",
-                "category": "Programming Languages",
-            },
-            {
-                "name": "Kubernetes",
-                "proficiency": "Advanced",
-                "category": "Tools",
-            },
-        ]
+Text:
+{combined_text}
 
-        try:
-            result = lx.extract(
-                text_or_documents=combined_text,
-                prompt_description=description,
-                examples=examples,
-                model_id=self.model,
-                model_url=self.ollama_host,
-                output_format="json_list",
-                provider_kwargs={"timeout": self.timeout},
-            )
-            return result if isinstance(result, list) else []
-        except Exception as e:
-            logger.error(f"    ⚠ Error parsing skills: {e}")
-            return []
+Return a JSON array of skills with this exact structure:
+[
+  {{
+    "name": "Skill Name",
+    "proficiency": "Expert|Advanced|Intermediate|Beginner",
+    "category": "Category (e.g., AI/ML, Languages, Tools, Cloud)"
+  }}
+]
+
+Focus on technical skills, programming languages, frameworks, tools, and domain expertise.
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
 
     def parse_projects(self, resume_text: str) -> List[Dict[str, Any]]:
-        """Parse notable projects from resume using LangExtract"""
-        logger.info("  Parsing projects with LangExtract...")
+        """Parse notable projects from resume using Ollama"""
+        logger.info("  Parsing projects with Ollama...")
 
-        description = """Extract notable projects from the resume.
-        For each project, include the project name, description of what was built,
-        technologies/tools used, your role, duration, and key achievements."""
+        prompt = f"""Extract notable projects from this resume text and return ONLY valid JSON.
 
-        examples = [
-            {
-                "name": "AI Chatbot Platform",
-                "description": "Built a conversational AI platform",
-                "technologies": ["Python", "LLM", "FastAPI"],
-                "role": "Lead Developer",
-                "duration": "6 months",
-                "achievements": [
-                    "Reduced query latency by 40%",
-                    "Deployed to production with 99.9% uptime",
-                ],
-            }
-        ]
+Resume text:
+{resume_text[:3000]}
 
-        try:
-            result = lx.extract(
-                text_or_documents=resume_text,
-                prompt_description=description,
-                examples=examples,
-                model_id=self.model,
-                model_url=self.ollama_host,
-                output_format="json_list",
-                provider_kwargs={"timeout": self.timeout},
-            )
-            return result if isinstance(result, list) else []
-        except Exception as e:
-            logger.error(f"    ⚠ Error parsing projects: {e}")
-            return []
+Return a JSON array of projects with this exact structure:
+[
+  {{
+    "name": "Project Name",
+    "description": "Brief description",
+    "technologies": ["Tech1", "Tech2"],
+    "role": "Your role in project",
+    "duration": "Project duration",
+    "achievements": ["Achievement1", "Achievement2"]
+  }}
+]
+
+Return ONLY the JSON array, no other text."""
+
+        response = self.call_ollama(prompt)
+        return self._parse_json_response(response, [])
 
 
 class ExperienceDataPopulator:
@@ -193,9 +190,9 @@ class ExperienceDataPopulator:
         # Ensure directories exist
         self.experience_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize LangExtract parser
+        # Initialize Ollama parser
         try:
-            self.parser = LangExtractDocumentParser()
+            self.parser = OllamaDocumentParser()
             self.has_parser = True
         except (ImportError, ConnectionError) as e:
             logger.warning(f"Warning: {e}")
@@ -277,7 +274,7 @@ class ExperienceDataPopulator:
         # Verify parser is available
         if not self.has_parser:
             raise RuntimeError(
-                "LangExtract parser is required to populate experience data. "
+                "Ollama is required to populate experience data. "
                 "Please ensure Ollama is running: docker compose up -d ollama"
             )
 
@@ -307,7 +304,7 @@ class ExperienceDataPopulator:
         work_history = self.parser.parse_work_history(pdf_text)
         if not work_history:
             raise RuntimeError(
-                "LangExtract failed to parse work history from resume. "
+                "Ollama failed to parse work history from resume. "
                 "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
@@ -319,7 +316,7 @@ class ExperienceDataPopulator:
         skills = self.parser.parse_skills(pdf_text, profile_text)
         if not skills:
             raise RuntimeError(
-                "LangExtract failed to parse skills from resume. "
+                "Ollama failed to parse skills from resume. "
                 "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
@@ -330,7 +327,7 @@ class ExperienceDataPopulator:
         projects = self.parser.parse_projects(pdf_text)
         if not projects:
             raise RuntimeError(
-                "LangExtract failed to parse projects from resume. "
+                "Ollama failed to parse projects from resume. "
                 "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
