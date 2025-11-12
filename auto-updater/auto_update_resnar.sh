@@ -96,6 +96,8 @@ log "Docker is accessible, proceeding with build and deployment..."
 log "Starting docker compose build and deployment..."
 log "Docker compose version: $(docker compose version 2>&1 || echo 'unknown')"
 log "Running: docker compose up -d --build"
+log "Note: Monitoring stack (Prometheus/Grafana) is optional and not started by default"
+log "      To enable monitoring: docker compose --profile monitoring up -d --build"
 
 if ! docker compose up -d --build 2>&1; then
     log "ERROR: Docker compose up failed!"
