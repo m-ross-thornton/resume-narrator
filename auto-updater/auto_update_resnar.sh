@@ -95,20 +95,26 @@ log "Docker is accessible, proceeding with build and deployment..."
 
 log "Starting docker compose build and deployment..."
 log "Docker compose version: $(docker compose version 2>&1 || echo 'unknown')"
-log "Running: docker compose up -d --build"
+
+# Remove autoupdater container to free up port 8008
+log "Cleaning up old autoupdater container if it exists..."
+docker compose rm -f autoupdater 2>&1 || true
+
+log "Running: docker compose up -d --build --force-recreate"
 log "Note: Monitoring stack (Prometheus/Grafana) is optional and not started by default"
 log "      To enable monitoring: docker compose --profile monitoring up -d --build"
 
-if ! docker compose up -d --build 2>&1; then
+if ! docker compose up -d --build --force-recreate 2>&1; then
     log "ERROR: Docker compose up failed!"
     log "Docker compose status before retry:"
     docker compose ps 2>&1 || true
 
     log "Attempting to clean up and retry..."
     docker system prune -f 2>&1 || true
+    docker compose rm -f autoupdater 2>&1 || true
 
-    log "Retry: docker compose up -d --build"
-    if ! docker compose up -d --build 2>&1; then
+    log "Retry: docker compose up -d --build --force-recreate"
+    if ! docker compose up -d --build --force-recreate 2>&1; then
         log "ERROR: Docker compose up failed on retry!"
         log "Final Docker compose status:"
         docker compose ps 2>&1 || true
