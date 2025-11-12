@@ -22,5 +22,16 @@ orjson>=3.9.12
 pypika>=0.48.9
 typer>=0.9.0
 pybase64>=1.4.1
+# OpenTelemetry dependencies (ChromaDB tracing/monitoring)
+opentelemetry-api>=1.2.0
+opentelemetry-sdk>=1.2.0
+opentelemetry-exporter-otlp-proto-grpc>=1.2.0
+# Additional ChromaDB dependencies
+posthog>=2.4.0
+importlib-resources>=5.0
+mmh3>=4.0.1
+onnxruntime>=1.14.1
+kubernetes>=28.1.0
+build>=1.0.3
 # Document processing dependency
 lxml>=3.1.0
