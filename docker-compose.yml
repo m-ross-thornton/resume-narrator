@@ -55,13 +55,32 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/resume_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  init-vector-db:
+    image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    command: python /app/scripts/init_vector_db.py
+    restart: "no"
+    profiles:
+      - init
 
   mcp-vector:
     image: ${DOCKER_USERNAME:-thornton}/resume-narrator-mcp:latest
@@ -79,7 +98,6 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/vector_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9002/health"]
@@ -103,7 +121,6 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/code_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
@@ -129,16 +146,14 @@ services:
       - ./data:/app/data
       - ./agent:/app/agent
     depends_on:
-      - mcp-resume
-      - mcp-vector
-      - mcp-code
+      - ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Optional: Monitoring stack
+  # Optional: Monitoring stack (enable with: docker compose --profile monitoring up)
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -149,6 +164,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    profiles:
+      - monitoring
 
   grafana:
     image: grafana/grafana:latest
@@ -161,6 +178,10 @@ services:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
 
   autoupdater:
     build: ./auto-updater
@@ -170,6 +191,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/ross/project/resume-narrator/:/host/project
+    # Run as root to ensure Docker socket access
+    # (alternative: get host docker group GID via: stat -c '%g' /var/run/docker.sock)
+    user: "0"
+    environment:
+      - PROJECT_DIR=/host/project
+      - DOCKER_HOST=unix:///var/run/docker.sock
     command: python webhook_listener.py
 
 volumes:

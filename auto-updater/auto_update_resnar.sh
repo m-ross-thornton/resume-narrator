@@ -71,19 +71,61 @@ log "New commit: $(git rev-parse --short HEAD)"
 
 # Check if docker is accessible
 log "Checking docker daemon..."
-if ! docker ps > /dev/null 2>&1; then
+if ! timeout 10 docker ps > /dev/null 2>&1; then
     log "ERROR: Docker daemon not accessible!"
+    log "Diagnostic information:"
+    log "  Docker socket exists: $([ -S /var/run/docker.sock ] && echo 'YES' || echo 'NO')"
+    log "  Current user: $(whoami)"
+    log "  Current UID:GID: $(id)"
+
+    # Try to provide more info about socket permissions
+    if [ -S /var/run/docker.sock ]; then
+        log "  Docker socket permissions: $(ls -l /var/run/docker.sock)"
+        log "  Docker socket owner: $(stat -c '%U:%G' /var/run/docker.sock 2>/dev/null || stat -f '%Su:%Sg' /var/run/docker.sock 2>/dev/null || echo 'unknown')"
+    fi
+
+    # Try alternative docker commands
+    log "Attempting docker version check..."
+    docker version 2>&1 || true
+
     exit 1
 fi
 
 log "Docker is accessible, proceeding with build and deployment..."
 
 log "Starting docker compose build and deployment..."
-if ! docker compose up -d --build 2>&1; then
+log "Docker compose version: $(docker compose version 2>&1 || echo 'unknown')"
+
+# Comprehensive cleanup of old containers to avoid port conflicts
+log "Cleaning up old containers to free up ports..."
+docker compose rm -f autoupdater 2>&1 || true
+docker compose rm -f chromadb 2>&1 || true
+docker compose rm -f mcp-vector mcp-resume mcp-code 2>&1 || true
+docker compose rm -f agent vector-db 2>&1 || true
+docker compose rm -f chainlit 2>&1 || true
+
+log "Running: docker compose up -d --build --force-recreate"
+log "Note: Monitoring stack (Prometheus/Grafana) is optional and not started by default"
+log "      To enable monitoring: docker compose --profile monitoring up -d --build"
+
+if ! docker compose up -d --build --force-recreate 2>&1; then
     log "ERROR: Docker compose up failed!"
-    log "Docker compose ps output:"
+    log "Docker compose status before retry:"
     docker compose ps 2>&1 || true
-    exit 1
+
+    log "Attempting to clean up and retry..."
+    docker system prune -f 2>&1 || true
+    docker compose rm -f autoupdater chromadb mcp-vector mcp-resume mcp-code agent vector-db chainlit 2>&1 || true
+
+    log "Retry: docker compose up -d --build --force-recreate"
+    if ! docker compose up -d --build --force-recreate 2>&1; then
+        log "ERROR: Docker compose up failed on retry!"
+        log "Final Docker compose status:"
+        docker compose ps 2>&1 || true
+        log "Docker system info:"
+        docker system info 2>&1 || true
+        exit 1
+    fi
 fi
 
 log "=== Deployment completed successfully ==="

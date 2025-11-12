@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 import sys
 import re
+import logging
 
 try:
     import requests
@@ -41,18 +42,28 @@ try:
 except ImportError:
     HAS_PYPDF2 = False
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 
 class OllamaDocumentParser:
     """Use Ollama to parse and structure experience documents"""
 
-    def __init__(self, ollama_host: str = "http://localhost:11434"):
-        self.ollama_host = ollama_host
-        self.model = "llama3.1:8b-instruct-q4_K_M"
-
+    def __init__(
+        self,
+        ollama_host: str = "http://localhost:11434",
+        model: str = "llama3.1:8b-instruct-q4_K_M",
+    ):
         if not HAS_REQUESTS:
             raise ImportError(
                 "requests library required. Install with: pip install requests"
             )
+
+        self.ollama_host = ollama_host
+        self.model = model
 
     def call_ollama(self, prompt: str) -> str:
         """Call Ollama API to generate response"""
@@ -60,28 +71,41 @@ class OllamaDocumentParser:
             response = requests.post(
                 f"{self.ollama_host}/api/generate",
                 json={"model": self.model, "prompt": prompt, "stream": False},
-                timeout=60,
+                timeout=300,
             )
             response.raise_for_status()
             return response.json().get("response", "")
         except requests.exceptions.ConnectionError as e:
-            print(f"    ⚠ Could not connect to Ollama: {e}")
+            logger.error(f"    ⚠ Could not connect to Ollama: {e}")
             return ""
         except requests.exceptions.HTTPError as e:
-            print(f"    ⚠ Ollama API error (likely out of memory): {e}")
+            logger.error(f"    ⚠ Ollama API error: {e}")
             return ""
         except Exception as e:
-            print(f"    ⚠ Error calling Ollama: {e}")
+            logger.error(f"    ⚠ Error calling Ollama: {e}")
             return ""
+
+    def _parse_json_response(self, response: str, default: Any = None) -> Any:
+        """Safely parse JSON response from Ollama"""
+        try:
+            # Try to find JSON in the response (in case there's extra text)
+            json_match = re.search(r"\[[\s\S]*\]|\{[\s\S]*\}", response)
+            if json_match:
+                json_str = json_match.group(0)
+                return json.loads(json_str)
+            return default if default is not None else []
+        except json.JSONDecodeError:
+            logger.warning(f"    ⚠ Could not parse JSON response: {response[:100]}")
+            return default if default is not None else []
 
     def parse_work_history(self, resume_text: str) -> List[Dict[str, Any]]:
         """Parse work history from resume text using Ollama"""
-        print("  Parsing work history with Ollama...")
+        logger.info("  Parsing work history with Ollama...")
 
         prompt = f"""Extract work history from this resume text and return ONLY valid JSON.
 
 Resume text:
-{resume_text[:2000]}
+{resume_text}
 
 Return a JSON array of work experience entries with this exact structure:
 [
@@ -104,9 +128,9 @@ Return ONLY the JSON array, no other text."""
         self, resume_text: str, profile_text: str = ""
     ) -> List[Dict[str, Any]]:
         """Parse skills from resume using Ollama"""
-        print("  Parsing skills with Ollama...")
+        logger.info("  Parsing skills with Ollama...")
 
-        combined_text = (resume_text + "\n" + profile_text)[:2000]
+        combined_text = resume_text + "\n" + profile_text
 
         prompt = f"""Extract technical and domain skills from this text and return ONLY valid JSON.
 
@@ -130,12 +154,12 @@ Return ONLY the JSON array, no other text."""
 
     def parse_projects(self, resume_text: str) -> List[Dict[str, Any]]:
         """Parse notable projects from resume using Ollama"""
-        print("  Parsing projects with Ollama...")
+        logger.info("  Parsing projects with Ollama...")
 
         prompt = f"""Extract notable projects from this resume text and return ONLY valid JSON.
 
 Resume text:
-{resume_text[:2000]}
+{resume_text}
 
 Return a JSON array of projects with this exact structure:
 [
@@ -154,19 +178,6 @@ Return ONLY the JSON array, no other text."""
         response = self.call_ollama(prompt)
         return self._parse_json_response(response, [])
 
-    def _parse_json_response(self, response: str, default: Any = None) -> Any:
-        """Safely parse JSON response from Ollama"""
-        try:
-            # Try to find JSON in the response (in case there's extra text)
-            json_match = re.search(r"\[[\s\S]*\]|\{[\s\S]*\}", response)
-            if json_match:
-                json_str = json_match.group(0)
-                return json.loads(json_str)
-            return default if default is not None else []
-        except json.JSONDecodeError:
-            print(f"    ⚠ Could not parse JSON response: {response[:100]}")
-            return default if default is not None else []
-
 
 class ExperienceDataPopulator:
     """Extract and populate experience data from raw sources"""
@@ -182,18 +193,18 @@ class ExperienceDataPopulator:
         # Initialize Ollama parser
         try:
             self.parser = OllamaDocumentParser()
-            self.has_ollama = True
+            self.has_parser = True
         except (ImportError, ConnectionError) as e:
-            print(f"Warning: {e}")
-            print("Will use fallback data generation\n")
-            self.has_ollama = False
+            logger.warning(f"Warning: {e}")
+            logger.warning("Will use fallback data generation\n")
+            self.has_parser = False
 
     def load_csv_profile(self) -> Dict[str, Any]:
         """Load profile data from CSV"""
         csv_file = self.raw_dir / "Profile.csv"
 
         if not csv_file.exists():
-            print(f"Warning: {csv_file} not found")
+            logger.warning(f"Warning: {csv_file} not found")
             return {}
 
         try:
@@ -207,7 +218,7 @@ class ExperienceDataPopulator:
                 # Use the first row
                 return rows[0]
         except Exception as e:
-            print(f"Error reading CSV: {e}")
+            logger.error(f"Error reading CSV: {e}")
             return {}
 
     def extract_pdf_text(self) -> str:
@@ -215,7 +226,7 @@ class ExperienceDataPopulator:
         pdf_file = next(self.raw_dir.glob("*.pdf"), None)
 
         if not pdf_file:
-            print("Warning: No PDF file found in data/raw/")
+            logger.warning("Warning: No PDF file found in data/raw/")
             return ""
 
         # Try pdfplumber first (better for structured extraction)
@@ -227,7 +238,7 @@ class ExperienceDataPopulator:
                         text += page.extract_text() or ""
                     return text
             except Exception as e:
-                print(f"Error extracting PDF with pdfplumber: {e}")
+                logger.error(f"Error extracting PDF with pdfplumber: {e}")
 
         # Fall back to PyPDF2
         if HAS_PYPDF2:
@@ -239,9 +250,9 @@ class ExperienceDataPopulator:
                         text += page.extract_text() or ""
                     return text
             except Exception as e:
-                print(f"Error extracting PDF with PyPDF2: {e}")
+                logger.error(f"Error extracting PDF with PyPDF2: {e}")
 
-        print(
+        logger.warning(
             "Warning: No PDF extraction library available. "
             "Install pdfplumber or PyPDF2"
         )
@@ -254,29 +265,31 @@ class ExperienceDataPopulator:
         with open(output_file, "w") as f:
             json.dump(data, f, indent=2)
 
-        print(f"✓ Created {output_file}")
+        logger.info(f"✓ Created {output_file}")
 
     def populate(self) -> None:
         """Run the full population process"""
-        print("Populating experience data...\n")
+        logger.info("Populating experience data...\n")
 
-        # Verify Ollama is available
-        if not self.has_ollama:
+        # Verify parser is available
+        if not self.has_parser:
             raise RuntimeError(
                 "Ollama is required to populate experience data. "
                 "Please ensure Ollama is running: docker compose up -d ollama"
             )
 
         # Load profile from CSV
-        print("1. Reading profile from CSV...")
+        logger.info("1. Reading profile from CSV...")
         profile = self.load_csv_profile()
         if profile:
-            print(f"   ✓ Loaded profile for {profile.get('First Name', 'Unknown')}")
+            logger.info(
+                f"   ✓ Loaded profile for {profile.get('First Name', 'Unknown')}"
+            )
         else:
-            print("   ⚠ No profile data found")
+            logger.warning("   ⚠ No profile data found")
 
         # Extract PDF
-        print("\n2. Extracting PDF resume...")
+        logger.info("\n2. Extracting PDF resume...")
         pdf_text = self.extract_pdf_text()
         if not pdf_text:
             raise RuntimeError(
@@ -284,48 +297,48 @@ class ExperienceDataPopulator:
                 "Please ensure a PDF file exists in data/raw/ and "
                 "pdfplumber or PyPDF2 are installed: pip install pdfplumber PyPDF2"
             )
-        print(f"   ✓ Extracted {len(pdf_text)} characters from PDF")
+        logger.info(f"   ✓ Extracted {len(pdf_text)} characters from PDF")
 
         # Create work history
-        print("\n3. Creating work history...")
+        logger.info("\n3. Creating work history...")
         work_history = self.parser.parse_work_history(pdf_text)
         if not work_history:
             raise RuntimeError(
                 "Ollama failed to parse work history from resume. "
-                "This typically means Ollama encountered a memory issue or parsing error. "
+                "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
         self.save_json("work_history.json", {"work_history": work_history})
 
         # Create skills
-        print("\n4. Creating skills list...")
+        logger.info("\n4. Creating skills list...")
         profile_text = f"{profile.get('Summary', '')} {profile.get('Headline', '')}"
         skills = self.parser.parse_skills(pdf_text, profile_text)
         if not skills:
             raise RuntimeError(
                 "Ollama failed to parse skills from resume. "
-                "This typically means Ollama encountered a memory issue or parsing error. "
+                "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
         self.save_json("skills.json", {"skills": skills})
 
         # Create projects
-        print("\n5. Creating projects...")
+        logger.info("\n5. Creating projects...")
         projects = self.parser.parse_projects(pdf_text)
         if not projects:
             raise RuntimeError(
                 "Ollama failed to parse projects from resume. "
-                "This typically means Ollama encountered a memory issue or parsing error. "
+                "This typically means the model encountered a parsing error. "
                 "Please check Ollama logs: docker compose logs ollama"
             )
         self.save_json("projects.json", {"projects": projects})
 
-        print("\n✅ Experience data population complete!")
-        print("\nNext steps:")
-        print("1. Review the generated JSON files in data/experience/")
-        print("2. Customize them if needed")
-        print(
-            "3. Run: docker compose up -d mcp-vector " "to index the data in ChromaDB"
+        logger.info("\n✅ Experience data population complete!")
+        logger.info("\nNext steps:")
+        logger.info("1. Review the generated JSON files in data/experience/")
+        logger.info("2. Customize them if needed")
+        logger.info(
+            "3. Run: python scripts/load_experience_to_vector_db.py to index the data in ChromaDB"
         )
 
 
@@ -339,14 +352,14 @@ def main():
         elif (current_dir.parent / "data").exists():
             data_dir = current_dir.parent / "data"
         else:
-            print("Error: Could not find data directory")
+            logger.error("Error: Could not find data directory")
             sys.exit(1)
 
         populator = ExperienceDataPopulator(data_dir)
         populator.populate()
 
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         import traceback
 
         traceback.print_exc()

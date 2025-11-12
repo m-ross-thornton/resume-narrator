@@ -69,3 +69,6 @@ Thumbs.db
 
 #chainlit
 .chainlit/translations/*
+
+# ChromaDB in-memory test databases
+:memory:/
