@@ -12,3 +12,5 @@ aiofiles>=23.0.0
 python-multipart>=0.0.6
 uvicorn>=0.24.0
 websockets>=13.0.0
+overrides>=7.0.0
+httpx>=0.24.0
