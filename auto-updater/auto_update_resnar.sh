@@ -96,9 +96,13 @@ log "Docker is accessible, proceeding with build and deployment..."
 log "Starting docker compose build and deployment..."
 log "Docker compose version: $(docker compose version 2>&1 || echo 'unknown')"
 
-# Remove autoupdater container to free up port 8008
-log "Cleaning up old autoupdater container if it exists..."
+# Comprehensive cleanup of old containers to avoid port conflicts
+log "Cleaning up old containers to free up ports..."
 docker compose rm -f autoupdater 2>&1 || true
+docker compose rm -f chromadb 2>&1 || true
+docker compose rm -f mcp-vector mcp-resume mcp-code 2>&1 || true
+docker compose rm -f agent vector-db 2>&1 || true
+docker compose rm -f chainlit 2>&1 || true
 
 log "Running: docker compose up -d --build --force-recreate"
 log "Note: Monitoring stack (Prometheus/Grafana) is optional and not started by default"
@@ -111,7 +115,7 @@ if ! docker compose up -d --build --force-recreate 2>&1; then
 
     log "Attempting to clean up and retry..."
     docker system prune -f 2>&1 || true
-    docker compose rm -f autoupdater 2>&1 || true
+    docker compose rm -f autoupdater chromadb mcp-vector mcp-resume mcp-code agent vector-db chainlit 2>&1 || true
 
     log "Retry: docker compose up -d --build --force-recreate"
     if ! docker compose up -d --build --force-recreate 2>&1; then
