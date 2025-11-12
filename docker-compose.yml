@@ -55,7 +55,6 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/resume_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
@@ -99,7 +98,6 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/vector_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9002/health"]
@@ -123,7 +121,6 @@ services:
       - .:/app/codebase:ro
     depends_on:
       - chromadb
-      - ollama
     command: python /app/mcp-servers/code_http_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
@@ -149,9 +146,7 @@ services:
       - ./data:/app/data
       - ./agent:/app/agent
     depends_on:
-      - mcp-resume
-      - mcp-vector
-      - mcp-code
+      - ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

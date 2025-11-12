@@ -2,12 +2,12 @@
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-import chromadb
-from chromadb.config import Settings
+import httpx
 from sentence_transformers import SentenceTransformer
 import json
 from datetime import datetime
 import numpy as np
+import os
 
 mcp = FastMCP("vector-db-server")
 
@@ -44,35 +44,64 @@ class DocumentIndexRequest(BaseModel):
 
 
 class VectorDBManager:
-    """Manage ChromaDB collections and operations"""
+    """Manage ChromaDB collections via HTTP API"""
 
     def __init__(self, persist_directory: str = "/app/data/embeddings/chroma_db"):
         self.persist_directory = persist_directory
-
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(
-            path=persist_directory,
-            settings=Settings(anonymized_telemetry=False, allow_reset=True),
-        )
+        # ChromaDB server URL from environment or default
+        self.chromadb_url = os.getenv("CHROMADB_URL", "http://chromadb:8000/api/v1")
+        self.client = httpx.Client(timeout=30.0)
 
         # Initialize embedding model (using a smaller model for local deployment)
         self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
+        # Cache for collection IDs
+        self._collection_cache = {}
+
         # Initialize collections
         self._init_collections()
+
+    def _get_or_create_collection(self, collection_name: str) -> str:
+        """Get or create a collection and return its ID"""
+        if collection_name in self._collection_cache:
+            return self._collection_cache[collection_name]
+
+        try:
+            # Try to get existing collection
+            response = self.client.get(
+                f"{self.chromadb_url}/collections/{collection_name}"
+            )
+            if response.status_code == 200:
+                collection_id = response.json()["id"]
+                self._collection_cache[collection_name] = collection_id
+                return collection_id
+        except:
+            pass
+
+        # Create new collection
+        try:
+            response = self.client.post(
+                f"{self.chromadb_url}/collections",
+                json={
+                    "name": collection_name,
+                    "metadata": {"hnsw:space": "cosine"},
+                    "get_or_create": True,
+                },
+            )
+            if response.status_code in [200, 201]:
+                collection_id = response.json()["id"]
+                self._collection_cache[collection_name] = collection_id
+                return collection_id
+        except Exception as e:
+            print(f"Warning: Could not create collection {collection_name}: {e}")
+            # Return a derived ID based on name as fallback
+            return collection_name
 
     def _init_collections(self):
         """Initialize default collections"""
         collections = ["experience", "projects", "skills", "documents"]
-
         for collection_name in collections:
-            try:
-                self.client.create_collection(
-                    name=collection_name, metadata={"hnsw:space": "cosine"}
-                )
-            except:
-                # Collection already exists
-                pass
+            self._get_or_create_collection(collection_name)
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for texts"""
@@ -87,35 +116,52 @@ class VectorDBManager:
         filters: Optional[Dict] = None,
     ) -> List[Dict]:
         """Search in a collection"""
-        collection = self.client.get_collection(collection_name)
+        try:
+            collection_id = self._get_or_create_collection(collection_name)
 
-        # Generate query embedding
-        query_embedding = self.embed_texts([query])[0]
+            # Generate query embedding
+            query_embedding = self.embed_texts([query])[0]
 
-        # Perform search
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            where=filters if filters else None,
-            include=["documents", "metadatas", "distances"],
-        )
-
-        # Format results
-        formatted_results = []
-        for i in range(len(results["ids"][0])):
-            formatted_results.append(
-                {
-                    "id": results["ids"][0][i],
-                    "document": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i]
-                    if results["metadatas"]
-                    else {},
-                    "similarity": 1
-                    - results["distances"][0][i],  # Convert distance to similarity
-                }
+            # Perform search via HTTP API
+            response = self.client.post(
+                f"{self.chromadb_url}/collections/{collection_id}/query",
+                json={
+                    "query_embeddings": [query_embedding],
+                    "n_results": top_k,
+                    "where": filters if filters else None,
+                    "include": ["documents", "metadatas", "distances"],
+                },
             )
 
-        return formatted_results
+            if response.status_code != 200:
+                return []
+
+            results = response.json()
+
+            # Format results
+            formatted_results = []
+            if results.get("ids") and len(results["ids"]) > 0:
+                for i in range(len(results["ids"][0])):
+                    formatted_results.append(
+                        {
+                            "id": results["ids"][0][i],
+                            "document": results["documents"][0][i]
+                            if results.get("documents") and results["documents"][0]
+                            else "",
+                            "metadata": results["metadatas"][0][i]
+                            if results.get("metadatas") and results["metadatas"][0]
+                            else {},
+                            "similarity": 1
+                            - results["distances"][0][
+                                i
+                            ],  # Convert distance to similarity
+                        }
+                    )
+
+            return formatted_results
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
 
     def index_documents(
         self,
@@ -124,26 +170,37 @@ class VectorDBManager:
         metadata: Optional[List[Dict]] = None,
     ) -> int:
         """Index documents into a collection"""
-        collection = self.client.get_collection(collection_name)
+        try:
+            collection_id = self._get_or_create_collection(collection_name)
 
-        # Generate embeddings
-        embeddings = self.embed_texts(documents)
+            # Generate embeddings
+            embeddings = self.embed_texts(documents)
 
-        # Generate IDs
-        ids = [
-            f"{collection_name}_{datetime.now().timestamp()}_{i}"
-            for i in range(len(documents))
-        ]
+            # Generate IDs
+            ids = [
+                f"{collection_name}_{datetime.now().timestamp()}_{i}"
+                for i in range(len(documents))
+            ]
 
-        # Add to collection
-        collection.add(
-            documents=documents,
-            embeddings=embeddings,
-            metadatas=metadata if metadata else [{} for _ in documents],
-            ids=ids,
-        )
+            # Add to collection via HTTP API
+            response = self.client.post(
+                f"{self.chromadb_url}/collections/{collection_id}/add",
+                json={
+                    "documents": documents,
+                    "embeddings": embeddings,
+                    "metadatas": metadata if metadata else [{} for _ in documents],
+                    "ids": ids,
+                },
+            )
 
-        return len(documents)
+            if response.status_code in [200, 201]:
+                return len(documents)
+            else:
+                print(f"Indexing failed with status {response.status_code}")
+                return 0
+        except Exception as e:
+            print(f"Indexing error: {e}")
+            return 0
 
 
 async def _search_experience_impl(request: VectorSearchRequest) -> Dict[str, Any]:
@@ -317,13 +374,32 @@ async def _analyze_skill_coverage_impl() -> Dict[str, Any]:
     try:
         db_manager = VectorDBManager()
 
-        # Get all documents from experience and projects
-        experience_collection = db_manager.client.get_collection("experience")
-        projects_collection = db_manager.client.get_collection("projects")
+        # Get all documents from experience and projects via HTTP API
+        chromadb_url = db_manager.chromadb_url
+        client = db_manager.client
 
-        # Retrieve all documents
-        exp_data = experience_collection.get(include=["documents", "metadatas"])
-        proj_data = projects_collection.get(include=["documents", "metadatas"])
+        exp_collection_id = db_manager._get_or_create_collection("experience")
+        proj_collection_id = db_manager._get_or_create_collection("projects")
+
+        # Retrieve all documents from experience collection
+        try:
+            exp_response = client.get(
+                f"{chromadb_url}/collections/{exp_collection_id}",
+                params={"include": ["documents", "metadatas"]},
+            )
+            exp_data = exp_response.json() if exp_response.status_code == 200 else {}
+        except:
+            exp_data = {}
+
+        # Retrieve all documents from projects collection
+        try:
+            proj_response = client.get(
+                f"{chromadb_url}/collections/{proj_collection_id}",
+                params={"include": ["documents", "metadatas"]},
+            )
+            proj_data = proj_response.json() if proj_response.status_code == 200 else {}
+        except:
+            proj_data = {}
 
         # Extract skills from metadata
         skill_frequency = {}
@@ -331,12 +407,22 @@ async def _analyze_skill_coverage_impl() -> Dict[str, Any]:
 
         for metadata in exp_data.get("metadatas", []):
             if metadata and "skills" in metadata:
-                for skill in metadata["skills"]:
+                skills = metadata["skills"]
+                if isinstance(skills, str):
+                    skills = json.loads(skills) if skills.startswith("[") else [skills]
+                elif not isinstance(skills, list):
+                    skills = [str(skills)]
+                for skill in skills:
                     skill_frequency[skill] = skill_frequency.get(skill, 0) + 1
 
         for metadata in proj_data.get("metadatas", []):
             if metadata and "technologies" in metadata:
-                for tech in metadata["technologies"]:
+                techs = metadata["technologies"]
+                if isinstance(techs, str):
+                    techs = json.loads(techs) if techs.startswith("[") else [techs]
+                elif not isinstance(techs, list):
+                    techs = [str(techs)]
+                for tech in techs:
                     skill_frequency[tech] = skill_frequency.get(tech, 0) + 1
 
         # Sort skills by frequency

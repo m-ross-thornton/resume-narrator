@@ -30,15 +30,15 @@ import json
 from pathlib import Path
 from typing import Tuple, Dict, Any
 import time
+import os
 
-# Try to import chromadb for checking existing data
+# Try to import httpx for checking remote ChromaDB
 try:
-    import chromadb
-    from chromadb.config import Settings
+    import httpx
 
-    HAS_CHROMADB = True
+    HAS_HTTPX = True
 except ImportError:
-    HAS_CHROMADB = False
+    HAS_HTTPX = False
 
 # Set up logging
 logging.basicConfig(
@@ -87,40 +87,57 @@ class VectorDBInitializer:
         Returns:
             Tuple of (is_populated: bool, collection_counts: Dict[str, int])
         """
-        if not HAS_CHROMADB:
-            logger.warning("⚠ chromadb not available, cannot check collection status")
+        if not HAS_HTTPX:
+            logger.warning(
+                "⚠ httpx not available, cannot check collection status via HTTP"
+            )
             return False, {}
 
         try:
-            # Connect to ChromaDB
-            client = chromadb.PersistentClient(
-                path=self.chroma_path,
-                settings=Settings(anonymized_telemetry=False, allow_reset=True),
+            # Use HTTP API to check ChromaDB
+            chromadb_url = self.chroma_host or os.getenv(
+                "CHROMADB_URL", "http://chromadb:8000/api/v1"
             )
 
-            # Check each collection
-            collection_counts = {}
-            for collection_name in ["experience", "projects", "skills"]:
-                try:
-                    collection = client.get_collection(collection_name)
-                    count = collection.count()
-                    collection_counts[collection_name] = count
-                    logger.info(f"  {collection_name}: {count} documents")
-                except Exception as e:
-                    logger.debug(f"Could not get collection {collection_name}: {e}")
-                    collection_counts[collection_name] = 0
+            with httpx.Client(timeout=10.0) as client:
+                # Check each collection
+                collection_counts = {}
+                for collection_name in ["experience", "projects", "skills"]:
+                    try:
+                        # Try to get the collection
+                        response = client.get(
+                            f"{chromadb_url}/collections/{collection_name}"
+                        )
 
-            # Consider populated if any main collection has data
-            is_populated = any(
-                count > 0
-                for name, count in collection_counts.items()
-                if name in ["experience", "projects"]
-            )
+                        if response.status_code == 200:
+                            data = response.json()
+                            # The response contains the count of documents
+                            count = data.get("count", 0)
+                            collection_counts[collection_name] = count
+                            logger.info(f"  {collection_name}: {count} documents")
+                        else:
+                            collection_counts[collection_name] = 0
+                            logger.debug(
+                                f"Collection {collection_name} not accessible (status {response.status_code})"
+                            )
+                    except Exception as e:
+                        logger.debug(f"Could not get collection {collection_name}: {e}")
+                        collection_counts[collection_name] = 0
 
-            return is_populated, collection_counts
+                # Consider populated if any main collection has data
+                is_populated = any(
+                    count > 0
+                    for name, count in collection_counts.items()
+                    if name in ["experience", "projects"]
+                )
+
+                return is_populated, collection_counts
 
         except Exception as e:
-            logger.warning(f"⚠ Could not check ChromaDB status: {e}")
+            logger.warning(f"⚠ Could not check ChromaDB status via HTTP: {e}")
+            logger.info(
+                "   Make sure ChromaDB service is running (docker compose up chromadb)"
+            )
             return False, {}
 
     def check_raw_data_exists(self) -> bool:

@@ -250,13 +250,16 @@ def main():
     # Reset if requested
     if args.reset:
         logger.warning("Resetting database...")
+        logger.warning(
+            "Note: Reset via HTTP API requires ChromaDB container restart."
+            " Consider running: docker compose down chromadb && docker compose up -d chromadb"
+        )
+        # Reinitialize collections (this will recreate them via HTTP API)
         try:
-            db_manager.client.reset()
-            logger.info("Database reset complete")
-            # Reinitialize collections
             db_manager._init_collections()
+            logger.info("Collections reinitialized")
         except Exception as e:
-            logger.error(f"Failed to reset database: {str(e)}")
+            logger.error(f"Failed to reinitialize collections: {str(e)}")
             return 1
 
     # Load collections
