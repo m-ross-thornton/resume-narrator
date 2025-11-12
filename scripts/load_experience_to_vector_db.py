@@ -37,9 +37,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Data directory
-DATA_DIR = Path(__file__).parent / "experience"
-CHROMA_DB_PATH = Path(__file__).parent / "embeddings" / "chroma_db"
+# Data directory - use project root data directory
+DATA_DIR = Path(__file__).parent.parent / "data" / "experience"
+CHROMA_DB_PATH = Path(__file__).parent.parent / "data" / "embeddings" / "chroma_db"
 
 
 def load_work_history() -> tuple[List[str], List[Dict[str, Any]]]:
