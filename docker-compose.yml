@@ -158,7 +158,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Optional: Monitoring stack
+  # Optional: Monitoring stack (enable with: docker compose --profile monitoring up)
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -169,6 +169,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    profiles:
+      - monitoring
 
   grafana:
     image: grafana/grafana:latest
@@ -181,6 +183,10 @@ services:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
 
   autoupdater:
     build: ./auto-updater
