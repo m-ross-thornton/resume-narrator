@@ -199,7 +199,20 @@ async def _stream_with_events(agent, message, msg, steps_dict):
                 output = data.get("output")
 
                 logger.info(f"Chain ended, output type: {type(output)}")
-                logger.debug(f"Chain output: {str(output)[:200]}")
+                logger.debug(f"Chain output: {str(output)[:500]}")
+
+                # Log full response structure for debugging
+                if isinstance(output, dict):
+                    logger.debug(f"Chain output keys: {list(output.keys())}")
+                    # Log messages if present
+                    if "messages" in output:
+                        msgs = output["messages"]
+                        logger.debug(f"Number of messages: {len(msgs)}")
+                        for i, msg_item in enumerate(msgs):
+                            logger.debug(
+                                f"  Message {i}: type={type(msg_item)}, "
+                                f"content='{msg_item.content if hasattr(msg_item, 'content') else 'N/A'}'"
+                            )
 
                 # Extract final response content
                 if output and isinstance(output, dict):
@@ -297,17 +310,34 @@ def _extract_output(response):
         try:
             last_message = response["messages"][-1]
             logger.debug(f"Last message type: {type(last_message)}")
+            logger.debug(f"Last message: {last_message}")
+
+            # Log message attributes if it's an object
+            if hasattr(last_message, "__dict__"):
+                logger.debug(f"Last message attributes: {last_message.__dict__}")
 
             if hasattr(last_message, "content"):
-                logger.info(f"Extracting content from message object")
+                logger.info(
+                    f"Extracting content from message object, content='{last_message.content}'"
+                )
                 return last_message.content
             elif isinstance(last_message, dict) and "content" in last_message:
-                logger.info(f"Extracting content from message dict")
+                logger.info(
+                    f"Extracting content from message dict, content='{last_message['content']}'"
+                )
                 return last_message["content"]
             else:
                 logger.warning(f"Last message has no content attribute or field")
+                # Try to extract any text-like fields from the message
+                if isinstance(last_message, dict):
+                    logger.warning(f"Message dict keys: {list(last_message.keys())}")
+                    # Try common alternative field names
+                    for field in ["text", "response", "answer", "output"]:
+                        if field in last_message:
+                            logger.info(f"Found alternative field '{field}' in message")
+                            return str(last_message[field])
         except (IndexError, AttributeError, TypeError) as e:
-            logger.warning(f"Error extracting from messages: {e}")
+            logger.warning(f"Error extracting from messages: {e}", exc_info=True)
             pass
 
     if "result" in response:
