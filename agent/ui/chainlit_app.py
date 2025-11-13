@@ -215,20 +215,27 @@ async def _stream_with_events(agent, message, msg, steps_dict):
                 output = data.get("output")
 
                 logger.info(f"Chain ended, output type: {type(output)}")
-                logger.debug(f"Chain output: {str(output)[:500]}")
 
-                # Log full response structure for debugging
+                # Log FULL response structure for debugging (not truncated!)
                 if isinstance(output, dict):
-                    logger.debug(f"Chain output keys: {list(output.keys())}")
+                    logger.info(f"Chain output keys: {list(output.keys())}")
+                    # Log the ENTIRE output dict
+                    logger.info(f"Full chain output dict: {output}")
+
                     # Log messages if present
                     if "messages" in output:
                         msgs = output["messages"]
-                        logger.debug(f"Number of messages: {len(msgs)}")
+                        logger.info(f"Number of messages: {len(msgs)}")
                         for i, msg_item in enumerate(msgs):
-                            logger.debug(
-                                f"  Message {i}: type={type(msg_item)}, "
-                                f"content='{msg_item.content if hasattr(msg_item, 'content') else 'N/A'}'"
-                            )
+                            logger.info(f"  Message {i} type: {type(msg_item)}")
+                            if hasattr(msg_item, "__dict__"):
+                                logger.info(f"    Attributes: {msg_item.__dict__}")
+                            elif isinstance(msg_item, dict):
+                                logger.info(f"    Content: {msg_item}")
+                            else:
+                                logger.info(f"    Repr: {repr(msg_item)}")
+                else:
+                    logger.info(f"Chain output (full): {output}")
 
                 # Extract final response content
                 if output and isinstance(output, dict):
