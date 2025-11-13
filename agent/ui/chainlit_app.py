@@ -15,15 +15,23 @@ logger = logging.getLogger(__name__)
 @cl.on_chat_start
 async def start():
     """Initialize the agent and welcome message on chat start."""
-    agent = create_lc_agent()
-    cl.user_session.set("agent", agent)
+    logger.info("Chat session started, initializing agent...")
+    try:
+        agent = create_lc_agent()
+        logger.info(f"Agent created successfully, type: {type(agent)}")
+        cl.user_session.set("agent", agent)
+        logger.info("Agent stored in user session")
 
-    await cl.Message(
-        content="👋 Hello! I'm a resume narrator AI assistant. I can help you with:\n"
-        f"• Generating a PDF of {SUBJECT_NAME}'s resume\n"
-        "• Answering questions about your experience\n"
-        "• Explaining how I work internally"
-    ).send()
+        await cl.Message(
+            content="👋 Hello! I'm a resume narrator AI assistant. I can help you with:\n"
+            f"• Generating a PDF of {SUBJECT_NAME}'s resume\n"
+            "• Answering questions about your experience\n"
+            "• Explaining how I work internally"
+        ).send()
+        logger.info("Welcome message sent")
+    except Exception as e:
+        logger.error(f"Error during chat start: {e}", exc_info=True)
+        await cl.Message(content=f"Error initializing agent: {str(e)}").send()
 
 
 @cl.on_message
@@ -32,7 +40,13 @@ async def main(message: cl.Message):
     Stream agent responses with tool call tracking using LangChain v1 astream_events.
     Implements the fix from https://github.com/Chainlit/chainlit/issues/2607
     """
+    logger.info(f"Processing user message: {message.content[:100]}...")
     agent = cl.user_session.get("agent")
+
+    if not agent:
+        logger.error("Agent not found in user session!")
+        await cl.Message(content="Error: Agent not initialized").send()
+        return
 
     # Create message container for streaming response
     msg = cl.Message(content="")
@@ -43,19 +57,33 @@ async def main(message: cl.Message):
 
     try:
         # Check if agent supports astream_events (LangChain v1.x feature)
+        logger.debug(f"Agent has astream_events: {hasattr(agent, 'astream_events')}")
+        logger.debug(f"Agent type: {type(agent)}")
+
         if hasattr(agent, "astream_events"):
+            logger.info("Using astream_events for streaming response")
             await _stream_with_events(agent, message, msg, steps_dict)
         else:
             # Fallback to invoke for older LangChain versions
             logger.info("astream_events not available, using invoke fallback")
             await _invoke_without_streaming(agent, message, msg)
 
-        # Final update to ensure message is persisted
+        # Final check and update to ensure message is persisted
+        logger.debug(f"Message content after processing: {len(msg.content)} chars")
+        logger.debug(f"Message content (first 100 chars): {msg.content[:100]}")
+
         if not msg.content:
+            logger.warning(
+                "No content in message after processing, using fallback message"
+            )
             msg.content = (
                 "I processed your request but received no response. Please try again."
             )
             await msg.update()
+        else:
+            logger.info(
+                f"Successfully processed message with {len(msg.content)} characters"
+            )
 
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
@@ -73,17 +101,26 @@ async def _stream_with_events(agent, message, msg, steps_dict):
     - Chain execution completion
     """
     try:
+        logger.info("Starting event streaming with astream_events...")
+        event_count = 0
+
         async for event in agent.astream_events(
             {"input": message.content}, version="v2"
         ):
+            event_count += 1
             kind = event.get("event")
             run_id = event.get("run_id")
+
+            logger.debug(f"Event #{event_count}: type={kind}, run_id={run_id}")
 
             # Handle tool calls starting
             if kind == "on_tool_start":
                 data = event.get("data", {})
                 tool_name = data.get("tool_name")
                 tool_input = data.get("input")
+
+                logger.info(f"Tool starting: {tool_name}")
+                logger.debug(f"Tool input: {tool_input}")
 
                 if tool_name:
                     # Create a step for tool execution visualization
@@ -98,12 +135,15 @@ async def _stream_with_events(agent, message, msg, steps_dict):
                     )
                     await step.send()
                     steps_dict[run_id] = step
-                    logger.debug(f"Started tool execution: {tool_name}")
+                    logger.info(f"Started tool execution: {tool_name}")
 
             # Handle tool completion
             elif kind == "on_tool_end":
                 data = event.get("data", {})
                 output = data.get("output")
+
+                logger.info(f"Tool ended, output type: {type(output)}")
+                logger.debug(f"Tool output: {str(output)[:200]}")
 
                 if run_id in steps_dict:
                     step = steps_dict[run_id]
@@ -114,12 +154,18 @@ async def _stream_with_events(agent, message, msg, steps_dict):
                     )
                     step.status = "done"
                     await step.update()
-                    logger.debug(f"Tool execution completed: {step.name}")
+                    logger.info(f"Tool execution completed: {step.name}")
+                else:
+                    logger.warning(
+                        f"Received on_tool_end but no step found for run_id {run_id}"
+                    )
 
             # Handle tool errors
             elif kind == "on_tool_error":
                 data = event.get("data", {})
                 error = data.get("error")
+
+                logger.error(f"Tool error occurred: {error}")
 
                 if run_id in steps_dict:
                     step = steps_dict[run_id]
@@ -127,32 +173,55 @@ async def _stream_with_events(agent, message, msg, steps_dict):
                     step.status = "error"
                     await step.update()
                     logger.error(f"Tool error in {step.name}: {error}")
+                else:
+                    logger.warning(
+                        f"Received on_tool_error but no step found for run_id {run_id}"
+                    )
 
             # Stream model output chunks for progressive display
             elif kind == "on_chat_model_stream":
                 data = event.get("data", {})
                 chunk = data.get("chunk")
 
+                logger.debug(f"Chat model stream event, chunk type: {type(chunk)}")
+
                 if chunk and hasattr(chunk, "content") and chunk.content:
                     # Append streamed content to message for real-time display
                     msg.content += chunk.content
                     await msg.update()
                     logger.debug(f"Streamed {len(chunk.content)} characters")
+                else:
+                    logger.debug(f"Skipped empty chunk")
 
             # Handle chain execution completion
             elif kind == "on_chain_end":
                 data = event.get("data", {})
                 output = data.get("output")
 
+                logger.info(f"Chain ended, output type: {type(output)}")
+                logger.debug(f"Chain output: {str(output)[:200]}")
+
                 # Extract final response content
                 if output and isinstance(output, dict):
                     final_content = _extract_output(output)
+                    logger.info(
+                        f"Extracted content: {final_content[:100] if final_content else 'None'}"
+                    )
                     if final_content:
                         msg.content = final_content
                         await msg.update()
+                else:
+                    logger.debug(
+                        f"Skipping chain_end processing, output type not dict: {type(output)}"
+                    )
+            else:
+                logger.debug(f"Ignoring event type: {kind}")
+
+        logger.info(f"Event streaming completed, processed {event_count} events")
 
     except Exception as e:
-        logger.warning(f"Streaming with events failed: {e}")
+        logger.warning(f"Streaming with events failed: {e}", exc_info=True)
+        logger.info("Falling back to non-streaming invoke")
         # Fallback to non-streaming invoke
         await _invoke_without_streaming(agent, message, msg)
 
@@ -166,16 +235,29 @@ async def _invoke_without_streaming(agent, message, msg):
 
     try:
         # Run agent invoke asynchronously
+        logger.debug(f"Calling agent.invoke with message: {message.content[:100]}...")
         response = await cl.make_async(agent.invoke)({"input": message.content})
+
+        logger.info(f"Agent.invoke returned, response type: {type(response)}")
+        logger.debug(f"Response structure: {str(response)[:500]}")
 
         # Extract the final response
         if response:
+            logger.info("Response received, extracting output...")
             final_content = _extract_output(response)
+            logger.info(f"Extracted content type: {type(final_content)}")
+            logger.debug(
+                f"Extracted content: {final_content[:200] if final_content else 'None'}"
+            )
+
             msg.content = final_content or "No response received from agent."
+            logger.info(f"Message content set to {len(msg.content)} characters")
         else:
+            logger.warning("Response was None or empty")
             msg.content = "No response received from agent."
 
         await msg.update()
+        logger.info("Message updated in Chainlit UI")
 
     except Exception as e:
         logger.error(f"Error in fallback invoke: {str(e)}", exc_info=True)
@@ -193,28 +275,47 @@ def _extract_output(response):
     - Dict with 'output' key
     - Various response structures
     """
+    logger.debug(f"_extract_output called with response type: {type(response)}")
+
     if isinstance(response, str):
+        logger.info(f"Response is string, returning directly ({len(response)} chars)")
         return response
 
     if not isinstance(response, dict):
+        logger.debug(f"Response is not dict or string, converting to string")
         return str(response)
+
+    logger.debug(f"Response is dict with keys: {response.keys()}")
 
     # Try different extraction methods
     if "output" in response and isinstance(response["output"], str):
+        logger.info(f"Found 'output' key in response dict")
         return response["output"]
 
     if "messages" in response and response["messages"]:
+        logger.info(f"Found 'messages' key with {len(response['messages'])} messages")
         try:
             last_message = response["messages"][-1]
+            logger.debug(f"Last message type: {type(last_message)}")
+
             if hasattr(last_message, "content"):
+                logger.info(f"Extracting content from message object")
                 return last_message.content
             elif isinstance(last_message, dict) and "content" in last_message:
+                logger.info(f"Extracting content from message dict")
                 return last_message["content"]
-        except (IndexError, AttributeError, TypeError):
+            else:
+                logger.warning(f"Last message has no content attribute or field")
+        except (IndexError, AttributeError, TypeError) as e:
+            logger.warning(f"Error extracting from messages: {e}")
             pass
 
     if "result" in response:
+        logger.info(f"Found 'result' key in response dict")
         return str(response["result"])
 
     # Fallback: return the response as string
+    logger.warning(
+        f"Could not extract output using standard methods, returning full response as string"
+    )
     return str(response)

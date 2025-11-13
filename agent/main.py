@@ -40,14 +40,31 @@ def generate_resume(template: str = "professional", sections: str = "") -> str:
         JSON string with resume generation result
     """
     try:
+        logger.info(
+            f"generate_resume called with template='{template}', sections='{sections}'"
+        )
         params = {
             "template": template,
             "sections": sections.split(",") if sections else [],
         }
-        response = httpx.post(f"{MCP_RESUME_URL}/tool/generate_resume", json=params)
+        logger.debug(
+            f"generate_resume sending request to {MCP_RESUME_URL}/tool/generate_resume with params: {params}"
+        )
+        response = httpx.post(
+            f"{MCP_RESUME_URL}/tool/generate_resume", json=params, timeout=30.0
+        )
+        logger.debug(f"generate_resume response status: {response.status_code}")
         response.raise_for_status()
-        return json.dumps(response.json())
+        result = response.json()
+        logger.info(
+            f"generate_resume completed successfully, response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}"
+        )
+        return json.dumps(result)
+    except httpx.TimeoutException as e:
+        logger.error(f"generate_resume timeout: {e}")
+        return json.dumps({"error": f"timeout: {str(e)}"})
     except Exception as e:
+        logger.error(f"generate_resume error: {e}", exc_info=True)
         return json.dumps({"error": str(e)})
 
 
@@ -62,13 +79,27 @@ def search_experience(query: str) -> str:
         JSON string with search results
     """
     try:
-        response = httpx.post(
-            f"{MCP_VECTOR_URL}/tool/search_experience", json={"query": query}
+        logger.info(f"search_experience called with query='{query}'")
+        logger.debug(
+            f"search_experience sending request to {MCP_VECTOR_URL}/tool/search_experience"
         )
+        response = httpx.post(
+            f"{MCP_VECTOR_URL}/tool/search_experience",
+            json={"query": query},
+            timeout=30.0,
+        )
+        logger.debug(f"search_experience response status: {response.status_code}")
         response.raise_for_status()
-        return json.dumps(response.json())
+        result = response.json()
+        logger.info(
+            f"search_experience completed successfully, found {len(result) if isinstance(result, list) else 'results'}"
+        )
+        return json.dumps(result)
+    except httpx.TimeoutException as e:
+        logger.error(f"search_experience timeout: {e}")
+        return json.dumps({"error": f"timeout: {str(e)}"})
     except Exception as e:
-        logger.error(f"Error calling search_experience: {e}")
+        logger.error(f"search_experience error: {e}", exc_info=True)
         return json.dumps({"error": str(e)})
 
 
@@ -83,12 +114,25 @@ def explain_architecture(component: str = "full_stack") -> str:
         JSON string with architecture explanation
     """
     try:
-        response = httpx.post(
-            f"{MCP_CODE_URL}/tool/explain_architecture", json={"component": component}
+        logger.info(f"explain_architecture called with component='{component}'")
+        logger.debug(
+            f"explain_architecture sending request to {MCP_CODE_URL}/tool/explain_architecture"
         )
+        response = httpx.post(
+            f"{MCP_CODE_URL}/tool/explain_architecture",
+            json={"component": component},
+            timeout=30.0,
+        )
+        logger.debug(f"explain_architecture response status: {response.status_code}")
         response.raise_for_status()
-        return json.dumps(response.json())
+        result = response.json()
+        logger.info(f"explain_architecture completed successfully")
+        return json.dumps(result)
+    except httpx.TimeoutException as e:
+        logger.error(f"explain_architecture timeout: {e}")
+        return json.dumps({"error": f"timeout: {str(e)}"})
     except Exception as e:
+        logger.error(f"explain_architecture error: {e}", exc_info=True)
         return json.dumps({"error": str(e)})
 
 
@@ -100,28 +144,56 @@ def analyze_skills() -> str:
         JSON string with skill analysis
     """
     try:
-        response = httpx.post(f"{MCP_VECTOR_URL}/tool/analyze_skill_coverage", json={})
+        logger.info("analyze_skills called")
+        logger.debug(
+            f"analyze_skills sending request to {MCP_VECTOR_URL}/tool/analyze_skill_coverage"
+        )
+        response = httpx.post(
+            f"{MCP_VECTOR_URL}/tool/analyze_skill_coverage", json={}, timeout=30.0
+        )
+        logger.debug(f"analyze_skills response status: {response.status_code}")
         response.raise_for_status()
-        return json.dumps(response.json())
+        result = response.json()
+        logger.info("analyze_skills completed successfully")
+        return json.dumps(result)
+    except httpx.TimeoutException as e:
+        logger.error(f"analyze_skills timeout: {e}")
+        return json.dumps({"error": f"timeout: {str(e)}"})
     except Exception as e:
+        logger.error(f"analyze_skills error: {e}", exc_info=True)
         return json.dumps({"error": str(e)})
 
 
 def create_lc_agent() -> Any:
     """Create the Resume Narrator agent with proper tool invocation."""
+    logger.info("Creating LangChain agent...")
+    logger.info(f"Using Ollama model: {OLLAMA_MODEL}")
+    logger.info(f"Ollama host: {OLLAMA_HOST}")
+    logger.info(f"MCP Resume URL: {MCP_RESUME_URL}")
+    logger.info(f"MCP Vector URL: {MCP_VECTOR_URL}")
+    logger.info(f"MCP Code URL: {MCP_CODE_URL}")
+
     tools = [generate_resume, search_experience, explain_architecture, analyze_skills]
+    logger.info(f"Binding {len(tools)} tools to agent: {[t.name for t in tools]}")
+
     # Initialize LLM with configured settings
+    logger.debug("Initializing ChatOllama LLM...")
     llm = ChatOllama(
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
         temperature=0.3,
     )
+    logger.debug("ChatOllama LLM initialized successfully")
 
+    logger.debug("Creating agent with LangChain create_agent...")
     agent = create_agent(
         llm,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
     )
+    logger.info("Agent created successfully")
+    logger.debug(f"Agent has astream_events: {hasattr(agent, 'astream_events')}")
+    logger.debug(f"Agent has invoke: {hasattr(agent, 'invoke')}")
     return agent
 
 
