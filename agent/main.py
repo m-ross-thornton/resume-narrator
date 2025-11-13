@@ -206,9 +206,72 @@ def create_lc_agent() -> Any:
 
 
 if __name__ == "__main__":
-    # Example usage
+    # Debug: Test ChatOllama directly without agent wrapper
+    import logging
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Enable httpx logging to see actual HTTP requests
+    logging.getLogger("httpx").setLevel(logging.DEBUG)
+
+    print("\n=== Testing ChatOllama directly (no agent wrapper) ===")
+    print(f"OLLAMA_HOST: {OLLAMA_HOST}")
+    print(f"OLLAMA_MODEL: {OLLAMA_MODEL}")
+
+    llm = ChatOllama(
+        model=OLLAMA_MODEL,
+        base_url=OLLAMA_HOST,
+        temperature=0.3,
+        num_predict=512,
+        repeat_penalty=1.1,
+        top_k=40,
+        top_p=0.9,
+        num_ctx=4096,
+    )
+    print(f"ChatOllama model: {llm.model}")
+    print(f"ChatOllama base_url: {llm.base_url}")
+
+    # Check what parameters are actually stored
+    for attr in [
+        "temperature",
+        "num_predict",
+        "repeat_penalty",
+        "top_k",
+        "top_p",
+        "num_ctx",
+    ]:
+        if hasattr(llm, attr):
+            print(f"ChatOllama {attr}: {getattr(llm, attr)}")
+
+    print("\nTest 1: Simple string prompt")
+    response = llm.invoke("Who are you and what is your background?")
+    print(f"Response length: {len(response.content)} chars")
+    print(f"Response: {response.content[:200]}")
+    if hasattr(response, "response_metadata"):
+        print(f"Metadata: {response.response_metadata}")
+
+    print("\nTest 2: Using messages format")
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    messages = [
+        SystemMessage(
+            content="You are a helpful AI assistant. Provide detailed, comprehensive responses."
+        ),
+        HumanMessage(content="Who are you and what is your background?"),
+    ]
+    response2 = llm.invoke(messages)
+    print(f"Response length: {len(response2.content)} chars")
+    print(f"Response: {response2.content[:200]}")
+    if hasattr(response2, "response_metadata"):
+        print(f"Metadata: {response2.response_metadata}")
+
+    print("\n=== Testing with agent wrapper ===")
     agent = create_lc_agent()
     result = agent.invoke(
-        HumanMessage(content="use the get_secret tool to get their secret")
+        HumanMessage(content="Who are you and what is your background?")
     )
-    print(result)
+    print(f"Agent result type: {type(result)}")
+    print(f"Agent result: {result}")
