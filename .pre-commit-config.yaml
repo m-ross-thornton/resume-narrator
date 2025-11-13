@@ -13,3 +13,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: pytest-unit
+        name: pytest-unit
+        entry: pytest tests/ -v --tb=short -m "not integration"
+        language: system
+        pass_filenames: false
+        always_run: true
