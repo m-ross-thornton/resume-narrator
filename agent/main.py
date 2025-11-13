@@ -182,10 +182,6 @@ def create_lc_agent() -> Any:
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
         temperature=0.3,
-        num_predict=512,  # Generate up to 512 tokens instead of default
-        repeat_penalty=1.1,  # Penalize repetition
-        top_k=40,  # Top-k sampling
-        top_p=0.9,  # Top-p (nucleus) sampling
         num_ctx=4096,  # Ensure adequate context window
     )
     logger.debug("ChatOllama LLM initialized successfully")
@@ -193,9 +189,20 @@ def create_lc_agent() -> Any:
     logger.info(f"LLM base_url: {llm.base_url}")
     logger.info(f"LLM temperature: {llm.temperature}")
 
+    # Bind generation parameters - this ensures they persist through create_agent
+    logger.debug("Binding generation parameters to ChatOllama...")
+    llm_with_params = llm.bind(
+        num_predict=512,  # Generate up to 512 tokens
+        repeat_penalty=1.1,  # Penalize repetition
+        top_k=40,  # Top-k sampling
+        top_p=0.9,  # Top-p (nucleus) sampling
+        # Note: num_ctx is set at instantiation above, not bindable
+    )
+    logger.info("Generation parameters bound to LLM")
+
     logger.debug("Creating agent with LangChain create_agent...")
     agent = create_agent(
-        llm,
+        llm_with_params,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
     )
@@ -268,10 +275,30 @@ if __name__ == "__main__":
     if hasattr(response2, "response_metadata"):
         print(f"Metadata: {response2.response_metadata}")
 
+    print("\nTest 3: Using llm.bind() with parameters")
+    llm_bound = llm.bind(
+        num_predict=512,
+        repeat_penalty=1.1,
+        top_k=40,
+        top_p=0.9,
+    )
+    response3 = llm_bound.invoke("Who are you and what is your background?")
+    print(f"Response length: {len(response3.content)} chars")
+    print(f"Response: {response3.content[:200]}")
+    if hasattr(response3, "response_metadata"):
+        print(f"Metadata: {response3.response_metadata}")
+
     print("\n=== Testing with agent wrapper ===")
     agent = create_lc_agent()
     result = agent.invoke(
-        HumanMessage(content="Who are you and what is your background?")
+        {"messages": [HumanMessage(content="Who are you and what is your background?")]}
     )
     print(f"Agent result type: {type(result)}")
-    print(f"Agent result: {result}")
+    if isinstance(result, dict) and "messages" in result:
+        last_msg = result["messages"][-1]
+        print(f"Last message type: {type(last_msg)}")
+        if hasattr(last_msg, "content"):
+            print(f"Last message length: {len(last_msg.content)} chars")
+            print(f"Last message: {last_msg.content[:200]}")
+    else:
+        print(f"Agent result: {result}")
