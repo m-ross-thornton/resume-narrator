@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent.main import (
     create_lc_agent,
-    generate_resume_pdf,
+    generate_resume,
     search_experience,
     explain_architecture,
     analyze_skills,
@@ -20,11 +20,11 @@ class TestToolFunctions:
     """Test @tool decorated functions"""
 
     @pytest.mark.unit
-    def test_generate_resume_pdf_tool_exists(self):
-        """Test resume PDF generation tool is created"""
-        assert generate_resume_pdf is not None
-        assert hasattr(generate_resume_pdf, "name")
-        assert generate_resume_pdf.name == "generate_resume_pdf"
+    def test_generate_resume_tool_exists(self):
+        """Test resume generation tool is created"""
+        assert generate_resume is not None
+        assert hasattr(generate_resume, "name")
+        assert generate_resume.name == "generate_resume"
 
     @pytest.mark.unit
     def test_search_experience_tool_exists(self):

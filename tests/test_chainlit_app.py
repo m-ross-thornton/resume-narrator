@@ -113,10 +113,10 @@ class TestChainlitIntegration:
     @pytest.mark.unit
     def test_agent_main_module_imports(self):
         """Test agent.main module can be imported with required functions"""
-        from agent.main import create_lc_agent, generate_resume_pdf, search_experience
+        from agent.main import create_lc_agent, generate_resume, search_experience
 
         assert create_lc_agent is not None
-        assert generate_resume_pdf is not None
+        assert generate_resume is not None
         assert search_experience is not None
 
     @pytest.mark.integration

@@ -92,6 +92,7 @@ class TestDataLoading:
         assert isinstance(data["skills"], list)
 
 
+@pytest.mark.integration
 class TestVectorDatabaseIndexing:
     """Tests for indexing data into vector database"""
 
@@ -144,6 +145,7 @@ class TestVectorDatabaseIndexing:
             assert count == len(documents)
 
 
+@pytest.mark.integration
 class TestVectorDatabaseSearch:
     """Tests for searching indexed data"""
 
@@ -238,6 +240,7 @@ class TestVectorSearchRequest:
         assert request.similarity_threshold == 0.5
 
 
+@pytest.mark.integration
 class TestDataIntegration:
     """Integration tests for the full pipeline"""
 

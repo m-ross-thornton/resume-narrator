@@ -191,14 +191,13 @@ class TestVectorDBServer:
         vector_db_server = import_mcp_module("vector_db_server")
         VectorDBManager = vector_db_server.VectorDBManager
 
-        # This will try to create a client - may fail without ChromaDB running
-        with patch("chromadb.PersistentClient") as mock_chroma:
-            mock_chroma.return_value = MagicMock()
+        # VectorDBManager now uses httpx.Client to call remote ChromaDB
+        with patch("httpx.Client"):
             with patch("sentence_transformers.SentenceTransformer"):
                 manager = VectorDBManager(persist_directory="/tmp/test_db")
 
                 assert manager.persist_directory == "/tmp/test_db"
-                mock_chroma.assert_called_once()
+                assert manager.chromadb_url == "http://chromadb:8000/api/v1"
 
     @pytest.mark.unit
     def test_similarity_threshold_validation(self):
