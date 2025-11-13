@@ -182,12 +182,17 @@ def create_lc_agent() -> Any:
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
         temperature=0.3,
-        num_predict=512,  # Generate up to 512 tokens instead of default ~1
-        repeat_penalty=1.1,  # Penalize repetition
-        top_k=40,  # Top-k sampling
-        top_p=0.9,  # Top-p (nucleus) sampling
+        model_kwargs={
+            "num_predict": 512,  # Generate up to 512 tokens instead of default ~1
+            "repeat_penalty": 1.1,  # Penalize repetition
+            "top_k": 40,  # Top-k sampling
+            "top_p": 0.9,  # Top-p (nucleus) sampling
+        },
     )
     logger.debug("ChatOllama LLM initialized successfully")
+    logger.info(f"LLM model: {llm.model}")
+    logger.info(f"LLM base_url: {llm.base_url}")
+    logger.info(f"LLM temperature: {llm.temperature}")
 
     logger.debug("Creating agent with LangChain create_agent...")
     agent = create_agent(
