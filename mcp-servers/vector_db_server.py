@@ -163,6 +163,32 @@ class VectorDBManager:
             print(f"Search error: {e}")
             return []
 
+    def _sanitize_metadata(self, metadata_list: List[Dict]) -> List[Dict]:
+        """
+        Sanitize metadata to ensure all values are ChromaDB-compatible types.
+        ChromaDB only accepts: str, int, float, bool, None
+        Lists and dicts are converted to JSON strings.
+        """
+        sanitized = []
+        for meta in metadata_list:
+            if not meta:
+                sanitized.append({})
+                continue
+
+            clean_meta = {}
+            for key, value in meta.items():
+                if value is None or isinstance(value, (str, int, float, bool)):
+                    clean_meta[key] = value
+                elif isinstance(value, (list, dict)):
+                    # Convert lists and dicts to JSON strings
+                    clean_meta[key] = json.dumps(value)
+                else:
+                    # Convert other types to string
+                    clean_meta[key] = str(value)
+            sanitized.append(clean_meta)
+
+        return sanitized
+
     def index_documents(
         self,
         collection_name: str,
@@ -182,13 +208,18 @@ class VectorDBManager:
                 for i in range(len(documents))
             ]
 
+            # Sanitize metadata to ensure ChromaDB compatibility
+            sanitized_metadata = self._sanitize_metadata(
+                metadata if metadata else [{} for _ in documents]
+            )
+
             # Add to collection via HTTP API
             response = self.client.post(
                 f"{self.chromadb_url}/collections/{collection_id}/add",
                 json={
                     "documents": documents,
                     "embeddings": embeddings,
-                    "metadatas": metadata if metadata else [{} for _ in documents],
+                    "metadatas": sanitized_metadata,
                     "ids": ids,
                 },
             )
