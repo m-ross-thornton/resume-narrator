@@ -103,6 +103,8 @@ async def _stream_with_events(agent, message, msg, steps_dict):
     try:
         logger.info("Starting event streaming with astream_events...")
         event_count = 0
+        stream_event_count = 0
+        chain_end_count = 0
 
         async for event in agent.astream_events(
             {"input": message.content}, version="v2"
@@ -110,6 +112,11 @@ async def _stream_with_events(agent, message, msg, steps_dict):
             event_count += 1
             kind = event.get("event")
             run_id = event.get("run_id")
+
+            if kind == "on_chat_model_stream":
+                stream_event_count += 1
+            elif kind == "on_chain_end":
+                chain_end_count += 1
 
             logger.debug(f"Event #{event_count}: type={kind}, run_id={run_id}")
 
@@ -185,13 +192,22 @@ async def _stream_with_events(agent, message, msg, steps_dict):
 
                 logger.debug(f"Chat model stream event, chunk type: {type(chunk)}")
 
+                # Log chunk details
+                if chunk:
+                    if hasattr(chunk, "content"):
+                        logger.debug(
+                            f"Chunk has content attribute: '{chunk.content}' (len={len(chunk.content) if chunk.content else 0})"
+                        )
+                    if hasattr(chunk, "__dict__"):
+                        logger.debug(f"Chunk attributes: {chunk.__dict__}")
+
                 if chunk and hasattr(chunk, "content") and chunk.content:
                     # Append streamed content to message for real-time display
                     msg.content += chunk.content
                     await msg.update()
                     logger.debug(f"Streamed {len(chunk.content)} characters")
                 else:
-                    logger.debug(f"Skipped empty chunk")
+                    logger.debug(f"Skipped empty chunk (chunk={chunk})")
 
             # Handle chain execution completion
             elif kind == "on_chain_end":
@@ -230,7 +246,11 @@ async def _stream_with_events(agent, message, msg, steps_dict):
             else:
                 logger.debug(f"Ignoring event type: {kind}")
 
-        logger.info(f"Event streaming completed, processed {event_count} events")
+        logger.info(
+            f"Event streaming completed: {event_count} total events, "
+            f"{stream_event_count} stream events, {chain_end_count} chain_end events. "
+            f"Final message content length: {len(msg.content)} chars"
+        )
 
     except Exception as e:
         logger.warning(f"Streaming with events failed: {e}", exc_info=True)
