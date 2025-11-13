@@ -6,6 +6,7 @@ Uses LangChain v1 astream_events() for real-time response streaming and tool tra
 import chainlit as cl
 from agent.main import create_lc_agent
 from agent.config import SUBJECT_NAME
+from langchain_core.messages import HumanMessage
 import json
 import logging
 
@@ -107,7 +108,7 @@ async def _stream_with_events(agent, message, msg, steps_dict):
         chain_end_count = 0
 
         async for event in agent.astream_events(
-            {"input": message.content}, version="v2"
+            {"messages": [HumanMessage(content=message.content)]}, version="v2"
         ):
             event_count += 1
             kind = event.get("event")
@@ -276,7 +277,9 @@ async def _invoke_without_streaming(agent, message, msg):
     try:
         # Run agent invoke asynchronously
         logger.debug(f"Calling agent.invoke with message: {message.content[:100]}...")
-        response = await cl.make_async(agent.invoke)({"input": message.content})
+        response = await cl.make_async(agent.invoke)(
+            {"messages": [HumanMessage(content=message.content)]}
+        )
 
         logger.info(f"Agent.invoke returned, response type: {type(response)}")
         logger.debug(f"Response structure: {str(response)[:500]}")
