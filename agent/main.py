@@ -176,33 +176,29 @@ def create_lc_agent() -> Any:
     tools = [generate_resume, search_experience, explain_architecture, analyze_skills]
     logger.info(f"Binding {len(tools)} tools to agent: {[t.name for t in tools]}")
 
-    # Initialize LLM with configured settings
-    logger.debug("Initializing ChatOllama LLM...")
+    # Initialize LLM with ALL parameters at instantiation
+    # ChatOllama reads these from instance variables, not from bind() or invoke() kwargs
+    logger.debug("Initializing ChatOllama LLM with full configuration...")
     llm = ChatOllama(
         model=OLLAMA_MODEL,
         base_url=OLLAMA_HOST,
         temperature=0.3,
+        num_predict=512,  # Generate up to 512 tokens instead of default
+        repeat_penalty=1.1,  # Penalize repetition
+        top_k=40,  # Top-k sampling
+        top_p=0.9,  # Top-p (nucleus) sampling
         num_ctx=4096,  # Ensure adequate context window
     )
     logger.debug("ChatOllama LLM initialized successfully")
     logger.info(f"LLM model: {llm.model}")
     logger.info(f"LLM base_url: {llm.base_url}")
     logger.info(f"LLM temperature: {llm.temperature}")
-
-    # Bind generation parameters - this ensures they persist through create_agent
-    logger.debug("Binding generation parameters to ChatOllama...")
-    llm_with_params = llm.bind(
-        num_predict=512,  # Generate up to 512 tokens
-        repeat_penalty=1.1,  # Penalize repetition
-        top_k=40,  # Top-k sampling
-        top_p=0.9,  # Top-p (nucleus) sampling
-        # Note: num_ctx is set at instantiation above, not bindable
-    )
-    logger.info("Generation parameters bound to LLM")
+    logger.info(f"LLM num_predict: {llm.num_predict}")
+    logger.info(f"LLM repeat_penalty: {llm.repeat_penalty}")
 
     logger.debug("Creating agent with LangChain create_agent...")
     agent = create_agent(
-        llm_with_params,
+        llm,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
     )
@@ -275,18 +271,7 @@ if __name__ == "__main__":
     if hasattr(response2, "response_metadata"):
         print(f"Metadata: {response2.response_metadata}")
 
-    print("\nTest 3: Using llm.bind() with parameters")
-    llm_bound = llm.bind(
-        num_predict=512,
-        repeat_penalty=1.1,
-        top_k=40,
-        top_p=0.9,
-    )
-    response3 = llm_bound.invoke("Who are you and what is your background?")
-    print(f"Response length: {len(response3.content)} chars")
-    print(f"Response: {response3.content[:200]}")
-    if hasattr(response3, "response_metadata"):
-        print(f"Metadata: {response3.response_metadata}")
+    print("\nTest 3: Test agent wrapper directly (the real culprit for 1-token issue)")
 
     print("\n=== Testing with agent wrapper ===")
     agent = create_lc_agent()
